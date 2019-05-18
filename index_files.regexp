@@ -30,8 +30,8 @@ Contents-.+\.gz
 ([[:xdigit:]]+-)?primary\.xml\.gz
 ([[:xdigit:]]+-)?primary\.xml\.xz
 repomd\.xml
-updateinfo\.xml\.gz
-updateinfo\.xml\.xz
+updateinfo\.xml(\.bz2|\.gz|\.xz)?
+prestodelta\.xml(\.gz|\.xz)?
 # OpenSuSE files
 EXTRA_PROV
 MD5SUMS
