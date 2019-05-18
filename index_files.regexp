@@ -9,6 +9,7 @@ TranslationIndex(\.bz2|\.gz|\.xz|\.lzma)?
 Contents-.+\.gz
 \d{4}-\d{2}-\d{2}-\d{4}\.\d+\.gz
 # Redhat files
+([[:xdigit:]]+-)?comps.*\.xml(\.bz2)?
 ([[:xdigit:]]+-)?comps.*\.xml(\.gz)?
 ([[:xdigit:]]+-)?comps.*\.xml(\.xz)?
 ([[:xdigit:]]+-)?filelists\.sqlite\.bz2
