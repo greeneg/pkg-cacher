@@ -10,7 +10,7 @@ Contents-.+\.gz
 \d{4}-\d{2}-\d{2}-\d{4}\.\d+\.gz
 # Redhat files
 ([[:xdigit:]]+-)?appstream.*\.xml(\.gz|\.xz)?
-([[:xdigit:]]+-)?comps.*\.xml(\.bz2|\.gz|\.xz)?
+([[:xdigit:]]+-)?comps.*\.xml(\.bz2|\.gz|\.xz|\.zck)?
 ([[:xdigit:]]+-)?filelists(\.sqlite|\.xml)(\.bz2|\.gz|\.xz|\.zck)?
 ([[:xdigit:]]+-)?other(\.sqlite|\.xml)(\.bz2|\.gz|\.xz|\.zck)?
 ([[:xdigit:]]+-)?pkgtags\.sqlite(\.gz|\.xz)
