@@ -16,9 +16,8 @@ Contents-.+\.gz
 ([[:xdigit:]]+-)?pkgtags\.sqlite(\.gz|\.xz|\.zck)
 ([[:xdigit:]]+-)?prestodelta\.xml(\.gz|\.xz|\.zck)
 ([[:xdigit:]]+-)?primary(\.sqlite|\.xml)(\.bz2|\.gz|\.xz|\.zck)
+([[:xdigit:]]+-)?updateinfo\.xml(\.bz2|\.gz|\.xz|\.zck)
 repomd\.xml
-updateinfo\.xml(\.bz2|\.gz|\.xz)?
-prestodelta\.xml(\.gz|\.xz)?
 # OpenSuSE files
 EXTRA_PROV
 MD5SUMS
