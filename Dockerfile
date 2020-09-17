@@ -4,6 +4,11 @@ LABEL name="pkg-cacher" \
       version="1.1.1" \
       maintainer="Reto Gantenbein <reto.gantenbein@linuxmonk.ch>"
 
+RUN adduser --system --group \
+        --home /var/cache/pkg-cacher \
+        --shell /usr/sbin/nologin \
+        pkg-cacher
+
 RUN apt-get update \
         && apt-get install -y --no-install-recommends --no-install-suggests \
             bzip2 \
