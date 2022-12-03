@@ -27,12 +27,12 @@ RUN apt-get update \
 RUN install -m 755 -d /etc/pkg-cacher \
         && install -m 755 -d /usr/share/pkg-cacher/Repos \
         && install -m 755 -d /var/cache/pkg-cacher \
-        && install -m 755 -d /var/log/pkg-cacher
+        && install -m 755 -d /var/log/pkg-cacher \
+        && chown pkg-cacher:pkg-cacher /var/cache/pkg-cacher
 
 COPY pkg-cacher.conf /etc/pkg-cacher/
 
 COPY pkg-cacher \
-        pkg-cacher.pl \
         pkg-cacher-cleanup.pl \
         pkg-cacher-fetch.pl \
         pkg-cacher-lib.pl \
@@ -53,8 +53,10 @@ RUN ln -sf /usr/share/pkg-cacher/pkg-cacher /usr/sbin/pkg-cacher
 RUN ln -sf /dev/stdout /var/log/pkg-cacher/access.log \
         && ln -sf /dev/stderr /var/log/pkg-cacher/error.log
 
+USER pkg-cacher
+
 VOLUME /var/cache/pkg-cacher
 
 EXPOSE 8080
 
-CMD /usr/sbin/pkg-cacher user=$(id -un) group=$(id -gn) daemon_port=8080
+CMD ["/usr/sbin/pkg-cacher", "daemon_port=8080"]
