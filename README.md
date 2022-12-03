@@ -22,13 +22,13 @@ To keep your data out of Docker container, we do a volume (`/var/pkg-cacher` -> 
 
 ```
 # Pull image from Docker Hub.
-$ docker pull linuxmonk/pkg-cacher-docker
+$ docker pull linuxmonk/pkg-cacher
 
 # Create local directory for repository cache.
 $ sudo mkdir -p /var/pkg-cacher
 
 # Use `docker run` for the first time.
-$ docker run --name=pkg-cacher -p 80:8080 -v /var/pkg-cacher:/var/cache/pkg-cacher linuxmonk/pkg-cacher-docker
+$ docker run --name=pkg-cacher -p 80:8080 -v /var/pkg-cacher:/var/cache/pkg-cacher linuxmonk/pkg-cacher
 
 # Use `docker start` if you have stopped it.
 $ docker start pkg-cacher
