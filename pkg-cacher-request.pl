@@ -314,6 +314,7 @@ package main {
                 usage_error($client);
             }
 
+            say STDERR "REQUEST STRING: $reqstpath";
             my ($host, $uri) = ($reqstpath =~ m|^/?([^/]+)(/.+)|);
 
             if (not $host || not $uri ) {
