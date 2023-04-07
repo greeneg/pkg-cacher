@@ -320,6 +320,7 @@ package main {
                 usage_error($client);
             }
 
+            say STDERR "Host $pathmap{$host}";
             if (not exists $pathmap{$host}) { # error
                 info_message("Undefined virtual host $1");
                 sendrsp(404, "Undefined virtual host $1");
