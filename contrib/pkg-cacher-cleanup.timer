@@ -1,0 +1,9 @@
+[Unit]
+Description=pkg-cacher cleanup timer
+
+[Timer]
+OnCalendar=daily
+Unit=pkg-cacher-cleanup.service
+
+[Install]
+WantedBy=timers.target

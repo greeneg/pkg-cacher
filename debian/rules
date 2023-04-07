@@ -37,11 +37,18 @@ install: build
 	dh_link -ppkg-cacher-cgi /usr/share/doc/pkg-cacher /usr/share/doc/pkg-cacher-cgi
 	dh_installdocs -ppkg-cacher README TODO client-samples
 	dh_installlogrotate -i
+	dh_install -ppkg-cacher --sourcedir=contrib pkg-cacher-cleanup.timer /lib/systemd/system/
+	dh_install -ppkg-cacher --sourcedir=contrib pkg-cacher-report.timer /lib/systemd/system/
+	dh_systemd_enable --name=pkg-cacher-cleanup
+	dh_systemd_enable --name=pkg-cacher-report
+	dh_systemd_enable --name=pkg-cacher
 	dh_installinit -i --name=pkg-cacher
+	dh_systemd_start --package pkg-cacher pkg-cacher-cleanup.timer pkg-cacher-report.timer
+	dh_systemd_start --remaining-packages
 	dh_installcron -i
 	dh_installman -i debian/pkg-cacher.1
 	dh_installchangelogs  -i
-	dh_link -ppkg-cacher-cgi /etc/pkg-cacher/apache.conf /etc/apache2/conf.d/pkg-cacher.conf
+	dh_link -ppkg-cacher-cgi /etc/pkg-cacher/apache.conf /etc/apache2/conf-available/pkg-cacher.conf
 	dh_compress -i
 	dh_fixperms -i
 	dh_installdeb -i

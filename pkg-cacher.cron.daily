@@ -5,6 +5,11 @@ if [ ! -x /usr/share/pkg-cacher/pkg-cacher.pl ]; then
   exit 0
 fi
 
+# Prefer systemd timers on systemd systems
+if [ -d /run/systemd/system ]; then
+  exit 0
+fi
+
 # Run the report generator
 /usr/share/pkg-cacher/pkg-cacher-report.pl >/dev/null
 

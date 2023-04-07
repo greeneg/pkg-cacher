@@ -1,0 +1,6 @@
+[Unit]
+Description=Generate pkg-cacher statistics report
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/pkg-cacher/pkg-cacher-report.pl

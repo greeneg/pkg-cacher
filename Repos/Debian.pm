@@ -24,11 +24,11 @@ use File::Basename 'dirname';
 
 use constant {
 	RELEASE_RE => qr/^ [[:xdigit:]]{32} +[0-9]+ (.*)$/,
-	PACKAGES_FILE_RE => qr/\/Packages(\.bz2|\.gz)?$/,
+	PACKAGES_FILE_RE => qr/\/Packages(\.bz2|\.gz|\.lzma|\.xz)?$/,
 	PACKAGES_RE => qr/^Filename: (.*)$/,
-	SOURCES_FILE_RE => qr/\/Sources(\.bz2|\.gz)?$/,
+	SOURCES_FILE_RE => qr/\/Sources(\.bz2|\.gz|\.lzma|\.xz)?$/,
 	SOURCES_RE => qr/^ [[:xdigit:]]{32} +[0-9]+ (.*)$/,
-	INDEX_FILE_RE => qr/\/Index(\.bz2|\.gz)?$/,
+	INDEX_FILE_RE => qr/\/Index(\.bz2|\.gz|\.lzma|\.xz)?$/,
 	INDEX_RE => qr/^ [[:xdigit:]]{40} +[0-9]+ (.*)$/,
 };
 

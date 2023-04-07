@@ -1,0 +1,9 @@
+[Unit]
+Description=pkg-cacher report timer
+
+[Timer]
+OnCalendar=hourly
+Unit=pkg-cacher-report.service
+
+[Install]
+WantedBy=timers.target

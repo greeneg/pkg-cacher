@@ -1,22 +1,27 @@
-Summary:  Caching proxy for Debian, Ubuntu, RedHat, Fedora, and CentOS repositories.
-Name: pkg-cacher
-Version: @@VERSION@@
-Release: 1%{dist}
-License: GPL
-Group: Applications/System
-Source: %{name}-%{version}.tar.bz2
-Packager: Robert Nelson (robertn at the-nelsons dot org)
-Buildroot: %{_tmppath}/%{name}-%{version}-root
+Name:      pkg-cacher
+Version:   @@VERSION@@
+Release:   2%{?dist}
+Summary:   Caching proxy for Debian, Ubuntu, RedHat, Fedora, and CentOS repositories
+
+License:   GPLv2+
+URL:       https://open-sw.github.io/pkg-cacher/
+Source0:   %{name}-%{version}.tar.bz2
 BuildArch: noarch
+
+BuildRequires: perl
+BuildRequires: perl-generators
+BuildRequires: systemd
 Requires: perl(DBD::SQLite)
-Provides: perl(pkg-cacher-lib.pl)
-Provides: perl(pkg-cacher-request.pl)
-Provides: perl(pkg-cacher-fetch.pl)
+%{?systemd_requires}
+
+Provides: perl(pkg-cacher-lib.pl) = %{version}-%{release}
+Provides: perl(pkg-cacher-request.pl) = %{version}-%{release}
+Provides: perl(pkg-cacher-fetch.pl) = %{version}-%{release}
 
 %description
-Pkg-cacher performs caching of packages and metadata which have been downloaded by 
-local users. It is most useful for local area networks with slow internet uplink or 
-many machines running the same distribution and version.
+Pkg-cacher performs caching of packages and metadata which have been downloaded
+by local users. It is most useful for local area networks with slow internet
+up-link or many machines running the same distribution and version.
 
 When a package is requested, the cache checks whether it already has the
 requested version, in which case it sends the package to the user immediately.
@@ -38,9 +43,9 @@ need to modify client's /etc/pkg/sources.list files or as an alternative to
 approx.
 
 %package sa
-Summary:  Caching proxy for Debian, Ubuntu, RedHat, Fedora, and CentOS repositories.
-Group: Applications/System
-Requires: pkg-cacher = %{version}
+Summary:  Caching proxy for Debian, Ubuntu, RedHat, Fedora, and CentOS repositories
+Requires: pkg-cacher = %{version}-%{release}
+%{?systemd_requires}
 Conflicts: pkg-cacher-cgi
 %description sa
 This package installs and configures pkg-cacher as a standalone server.
@@ -48,9 +53,9 @@ This package installs and configures pkg-cacher as a standalone server.
 Install pkg-cacher-cgi instead if a cgi script under Apache is desired.
 
 %package cgi
-Summary:  Caching proxy for Debian, Ubuntu, RedHat, Fedora, and CentOS repositories.
-Group: Applications/System
-Requires: pkg-cacher = %{version}
+Summary:  Caching proxy for Debian, Ubuntu, RedHat, Fedora, and CentOS repositories
+Requires: pkg-cacher = %{version}-%{release}
+Requires: httpd
 Conflicts: pkg-cacher-sa
 %description cgi
 This package installs and configures pkg-cacher as a cgi script under Apache.
@@ -60,48 +65,65 @@ Install pkg-cacher-sa instead if a standalone server is desired.
 %prep
 %setup -q
 
+%build
+
 %install
-make DESTDIR=$RPM_BUILD_ROOT install-clean
-make DESTDIR=$RPM_BUILD_ROOT install-dirs
-make DESTDIR=$RPM_BUILD_ROOT install-files
-perl -pe 's/^our \$version=.*/our \$version="'%{version}-%{release}'";/' -i $RPM_BUILD_ROOT/usr/share/pkg-cacher/pkg-cacher
-make DESTDIR=$RPM_BUILD_ROOT install-config
-make DESTDIR=$RPM_BUILD_ROOT install-docs
-make DESTDIR=$RPM_BUILD_ROOT install-logrotate
-make DESTDIR=$RPM_BUILD_ROOT install-init
-make DESTDIR=$RPM_BUILD_ROOT install-cron
-make DESTDIR=$RPM_BUILD_ROOT install-man
-make DESTDIR=$RPM_BUILD_ROOT install-link
+make DESTDIR=%{buildroot} install-clean
+make DESTDIR=%{buildroot} install-dirs
+make DESTDIR=%{buildroot} install-files
+perl -pe 's/^our \$version=.*/our \$version="'%{version}-%{release}'";/' -i %{buildroot}/usr/share/pkg-cacher/pkg-cacher
+make DESTDIR=%{buildroot} install-config
+make DESTDIR=%{buildroot} install-docs
+make DESTDIR=%{buildroot} install-logrotate
+make DESTDIR=%{buildroot} install-man
+make DESTDIR=%{buildroot} install-link
+install -m 755 -d %{buildroot}%{_unitdir}
+install -m 644 -p contrib/*.service %{buildroot}%{_unitdir}
+install -m 644 -p contrib/*.timer %{buildroot}%{_unitdir}
+
+#define license tag if not already defined
+%{!?_licensedir:%global license %doc}
 
 %files
 %defattr(-,root,root)
-/usr/sbin/pkg-cacher
-%attr(-,pkg-cacher,pkg-cacher) %dir /usr/share/pkg-cacher
-/usr/share/pkg-cacher/*
+%{_sbindir}/%{name}
+%attr(-,pkg-cacher,pkg-cacher) %dir %{_datadir}/%{name}
+%{_datadir}/%{name}/*
 %attr(-,pkg-cacher,pkg-cacher) %dir /var/cache/pkg-cacher
 %attr(-,pkg-cacher,pkg-cacher) %dir /var/log/pkg-cacher
-%config(noreplace) /etc/pkg-cacher/pkg-cacher.conf
-%config /etc/pkg-cacher/apache.conf
-%config /etc/cron.daily/pkg-cacher
-%config /etc/logrotate.d/pkg-cacher
-%doc /usr/share/doc/pkg-cacher/*
-%doc /usr/share/man/man1/pkg-cacher.*
+%config(noreplace) %{_sysconfdir}/%{name}/%{name}.conf
+%config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
+%{_unitdir}/%{name}-cleanup.timer
+%{_unitdir}/%{name}-cleanup.service
+%{_unitdir}/%{name}-report.timer
+%{_unitdir}/%{name}-report.service
+%{_mandir}/man1/%{name}.1*
+%doc /usr/share/doc/%{name}/*
+%license COPYING
 
 %files sa
 %defattr(-,root,root)
-%config /etc/init.d/pkg-cacher
-%config /etc/sysconfig/pkg-cacher
+%{_unitdir}/%{name}.service
+%license COPYING
 
 %files cgi
 %defattr(-,root,root)
+%config(noreplace) %{_sysconfdir}/%{name}/apache.conf
+%license COPYING
 
 %pre sa
 getent group pkg-cacher > /dev/null || groupadd -r pkg-cacher
 getent passwd pkg-cacher > /dev/null || \
 	useradd -r -d /var/cache/pkg-cacher -g pkg-cacher -s /sbin/nologin \
 	-c "pkg-cacher user" pkg-cacher > /dev/null 2>&1
+exit 0
+
+%post
+%systemd_post %{name}-cleanup.timer
+%systemd_post %{name}-report.timer
 
 %post sa
+%systemd_post %{name}.service
 test -d /var/cache/pkg-cacher || {
 	mkdir /var/cache/pkg-cacher{,/cache,/headers,/packages,/private,/temp}
 }
@@ -112,8 +134,6 @@ test -d /var/log/pkg-cacher || {
 }
 chown -R pkg-cacher:pkg-cacher /var/log/pkg-cacher
 sed -i -e '/^\(user\|group\)=/s/=.*$/=pkg-cacher/' /etc/pkg-cacher/pkg-cacher.conf
-chkconfig pkg-cacher on
-service pkg-cacher restart
 
 %post cgi
 ln -sf /etc/pkg-cacher/apache.conf /etc/httpd/conf.d/pkg-cacher.conf
@@ -127,12 +147,31 @@ test -d /var/log/pkg-cacher || {
 }
 chown -R apache:apache /var/log/pkg-cacher
 sed -i -e '/^\(user\|group\)=/s/=.*$/=apache/' /etc/pkg-cacher/pkg-cacher.conf
-service httpd restart
+systemctl try-restart httpd.service >/dev/null 2>&1 || :
 
-%clean
-rm -rf $RPM_BUILD_ROOT
+%preun
+%systemd_preun %{name}-cleanup.timer
+%systemd_preun %{name}-report.timer
+
+%preun sa
+%systemd_preun %{name}.service
+
+%postun
+%systemd_postun_with_restart %{name}-cleanup.timer
+%systemd_postun_with_restart %{name}-report.timer
+
+%postun sa
+%systemd_postun_with_restart %{name}.service
+
+%postun cgi
+systemctl try-restart httpd.service >/dev/null 2>&1 || :
 
 %changelog
+* Wed Feb 28 2018 Reto Gantenbein ( reto.gantenbein@linuxmonk.ch ) - 1.1.1-2
+  - Replace init script for standalone use with systemd service
+
+  - Replace cron script with systemd timers
+
 * Thu Jun 25 2015 Robert Nelson ( robertn@the-nelsons.org ) - 1.1.1
   - Update version to 1.1.1
 

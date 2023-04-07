@@ -201,6 +201,10 @@ sub libcurl {
 
 			$curl->setopt(CURLOPT_HTTPHEADER, \@headers);
 			$curl->setopt(CURLOPT_WRITEHEADER, [\$response, ($pkfdref ? 1 : 0)]);
+
+			# Make sure URL doesn't contain any illegal characters
+			$url =~ s/\r|\n//g;
+
 			$curl->setopt(CURLOPT_URL, $url);
 
 			debug_message("fetch: getting $url");

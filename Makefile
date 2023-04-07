@@ -74,7 +74,7 @@ install-init:
 install-docs:
 	install -m 755 -d $(DESTDIR)/usr/share/doc/pkg-cacher
 	install -m 755 -d $(DESTDIR)/usr/share/doc/pkg-cacher/client-samples
-	install -m 644 README TODO $(DESTDIR)/usr/share/doc/pkg-cacher
+	install -m 644 README.md TODO $(DESTDIR)/usr/share/doc/pkg-cacher
 	install -m 644 $(CLIENT_SAMPLE_FILES) $(DESTDIR)/usr/share/doc/pkg-cacher/client-samples
 
 install-logrotate:

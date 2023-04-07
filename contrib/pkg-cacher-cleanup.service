@@ -1,0 +1,9 @@
+[Unit]
+Description=Cleanup pkg-cacher cache
+
+[Service]
+Type=oneshot
+Nice=19
+IOSchedulingClass=2
+IOSchedulingPriority=7
+ExecStart=/usr/share/pkg-cacher/pkg-cacher-cleanup.pl

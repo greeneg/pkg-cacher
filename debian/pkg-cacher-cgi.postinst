@@ -26,6 +26,7 @@ set -e
 case "$1" in
 	configure)
 		test -d /var/cache/pkg-cacher || {
+			mkdir /var/cache/pkg-cacher
 			for dir in cache headers packages private temp; do
 				mkdir /var/cache/pkg-cacher/$dir
 			done
@@ -38,7 +39,14 @@ case "$1" in
 		}
 		chown -R www-data:www-data /var/log/pkg-cacher
 		sed -i -e '/^\(user\|group\)=/s/=.*$/=www-data/' /etc/pkg-cacher/pkg-cacher.conf
-		invoke-rc.d apache2 reload
+		if [ -e /usr/share/apache2/apache2-maintscript-helper ]; then
+			. /usr/share/apache2/apache2-maintscript-helper
+			apache2_invoke enmod cgi
+			apache2_invoke enconf pkg-cacher
+
+			# remove OLD Apache 2.2 link
+			[ -L /etc/apache2/conf.d/pkg-cacher.conf ] && rm /etc/apache2/conf.d/pkg-cacher.conf
+		fi
 		;;
 
 	abort-upgrade|abort-remove|abort-deconfigure)

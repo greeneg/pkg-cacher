@@ -1,0 +1,16 @@
+[Unit]
+Description=Transparent Cache for Debian and Red Hat Packages
+Documentation=man:pkg-cacher(1)
+After=network.target
+RequiresMountsFor=/var/cache/pkg-cacher
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/pkg-cacher
+User=pkg-cacher
+Group=pkg-cacher
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
