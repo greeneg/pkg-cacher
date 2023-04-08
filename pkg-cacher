@@ -17,8 +17,9 @@
 # ----------------------------------------------------------------------------
 
 package main {
-    use strict;
-    use warnings;
+    use strictures;
+    use English;
+    use utf8;
 
     use feature ":5.28";
     use feature 'lexical_subs';
@@ -37,13 +38,17 @@ package main {
 
     use File::Path;
 
-    use lib '/usr/share/pkg-cacher/';
+    use FindBin;
+    use lib "$FindBin::RealBin/.";
 
     # Include the library for the config file parser
-    require 'pkg-cacher-lib.pl';
+    use PkgCacher;
+    use PkgCacher::Request;
 
     # Set some defaults
     our $version="x";
+
+    my $pkg_cacher = PkgCacher->new();
 
     my $configfile_default = '/etc/pkg-cacher/pkg-cacher.conf';
 
@@ -66,8 +71,6 @@ package main {
 
     my @childPids;
     my $terminating;
-
-    require 'pkg-cacher-request.pl';
 
     # Subroutines
 
