@@ -28,7 +28,11 @@ package PkgCacher {
 
     our $cfg;
 
+    our $erlog_fh = undef;
+    our $aclog_fh = undef;
+
     sub new ($class) {
+        say STDERR "Constructing PkgCacher object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
 
         bless($self, $class);
@@ -36,6 +40,7 @@ package PkgCacher {
     }
 
     our sub read_patterns ($self, $filename) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $file = '/usr/share/pkg-cacher/' . $filename;
         my @pattern;
 
@@ -52,6 +57,7 @@ package PkgCacher {
     }
 
     our sub read_config ($self, $config_file) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         # set the default config variables
         my %config = (
             cache_dir => '/var/cache/pkg-cacher',
@@ -106,17 +112,22 @@ package PkgCacher {
     # check directories exist and are writable
     # Needs to run as root as parent directories may not be writable
     our sub check_install ($self, $cfg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         # Die if we have not been configured correctly
         say STDERR "DEBUG: ". Dumper($cfg) if $ENV{'DEBUG'};
         if (exists $cfg->{'cache_dir'} && defined $cfg->{'cache_dir'}) {
-            say STDERR basename($PROGRAM_NAME) . ": No cache_dir directory! Exiting" if (not -d $cfg->{'cache_dir'});
-            exit 2;
+            if (not -d $cfg->{'cache_dir'}) {
+                say STDERR basename($PROGRAM_NAME) . ": No cache_dir directory! Exiting";
+                exit 2;
+            }
         } else {
             say STDERR basename($PROGRAM_NAME) . ": No cache_dir is configured! Exiting";
             exit 1;
         }
 
+        say STDERR "Info: Checking for user $cfg->{'user'}" if $ENV{'DEBUG'};
         my $uid = $cfg->{'user'}  =~ /^\d+$/ ? $cfg->{'user'} : getpwnam($cfg->{'group'});
+        say STDERR "Info: Checking for group $cfg->{'group'}" if $ENV{'DEBUG'};
         my $gid = $cfg->{'group'} =~ /^\d+$/ ? $cfg->{'group'} : getgrnam($cfg->{'group'});
 
         if (not defined ($uid || $gid)) {
@@ -128,15 +139,16 @@ package PkgCacher {
                 "$cfg->{cache_dir}/headers", "$cfg->{cache_dir}/packages",
                 "$cfg->{cache_dir}/private", "$cfg->{cache_dir}/temp",
                 "$cfg->{cache_dir}/cache") {
+            say STDERR "Info: Checking for $dir" if $ENV{'DEBUG'};
             if (not -d $dir) {
-                say "Warning: $dir missing. Doing mkdir($dir, 0755)";
+                say STDERR "Warning: $dir missing. Doing mkdir($dir, 0755)";
                 mkdir($dir, 0755) || die "Unable to create $dir";
                 chown($uid, $gid, $dir) || die "Unable to set ownership for $dir";
             }
         }
         for my $file ("$cfg->{logdir}/access.log", "$cfg->{logdir}/error.log") {
-            if (!-e $file) {
-                say "Warning: $file missing. Creating";
+            if (not -e $file) {
+                say STDERR "Warning: $file missing. Creating";
                 open(my $tmp, ">$file") || die "Unable to create $file";
                 close($tmp);
                 chown($uid, $gid, $file) || die "Unable to set ownership for $file";
@@ -147,6 +159,7 @@ package PkgCacher {
     # Convert a human-readable IPv4 address to raw form (4-byte string)
     # Returns undef if the address is invalid
     sub ipv4_normalise ($addr) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return undef if $addr =~ /:/;
         my @in = split (/\./, $addr);
         return '' if $#in != 3;
@@ -161,6 +174,7 @@ package PkgCacher {
     # Convert a human-readable IPv6 address to raw form (16-byte string)
     # Returns undef if the address is invalid
     sub ipv6_normalise ($addr) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return "\0" x 16 if $addr eq '::';
         return undef if $addr =~ /^:[^:]/  || $addr =~ /[^:]:$/ || $addr =~ /::.*::/;
         my @in = split (/:/, $addr);
@@ -196,6 +210,7 @@ package PkgCacher {
 
     # Make a netmask from a CIDR network-part length and the IP address length
     sub make_mask ($mask, $bits) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return undef if $mask < 0 || $mask > $bits;
         my $m = ("\xFF" x ($mask / 8));
         $m .= chr ((-1 << (8 - $mask % 8)) & 255) if $mask % 8;
@@ -204,26 +219,75 @@ package PkgCacher {
 
     # Arg is ref to flattened hash. Returns hash ref
     sub hashify {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         unless ($cfg->{'debug'}) {
             no warnings 'uninitialized'
         }
         return {split(/ /, ${$_[0]})};
     }
 
-    # Stuff to append debug messages to the error log.
+    our sub info_message ($self, $msg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        $self->write_errorlog("info [$PROCESS_ID]: $msg");
+    }
+
+    our sub error_message ($self, $msg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        $self->write_errorlog("error [$PROCESS_ID]: $msg");
+    }
+
     our sub debug_message ($self, $cfg, $msg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         if ($cfg->{'debug'}) {
-            writeerrorlog("debug [$PROCESS_ID]: $msg");
+            $self->write_errorlog("debug [$PROCESS_ID]: $msg");
+        }
+    }
+
+    sub open_log_files ($self, $cfg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        my $logfile = "$cfg->{'logdir'}/access.log";
+        my $errorfile = "$cfg->{'logdir'}/error.log";
+
+        if (defined $erlog_fh) {
+            open($erlog_fh, ">>", "$errorfile") or barf("Unable to open $errorfile, $!");
+        }
+        if (defined $aclog_fh) {
+            open($aclog_fh,">>", "$logfile") or barf("Unable to open $logfile, $!");
+        }
+        # Install signal handlers to capture error messages
+        $SIG{__WARN__} = sub { $self->write_errorlog("warn [$PROCESS_ID]: " . shift) };
+        $SIG{__DIE__}  = sub { $self->write_errorlog("error [$PROCESS_ID]: " . shift) };
+    }
+
+    # Jon's extra stuff to write errors to a log file.
+    our sub write_errorlog ($self, $msg, $erlog_fh = undef) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        my $time = localtime;
+
+        # Prevent double newline
+        chomp $msg;
+
+        if (not defined $erlog_fh) {
+            say STDERR "$msg"; # Better than nothing
+            return;
+        } else {
+            flock($erlog_fh, LOCK_EX);
+            # files may need to be reopened sometimes - reason unknown yet, EBADF
+            # results
+            syswrite($erlog_fh,"$time|$msg\n") || $self->open_log_files();
+            flock($erlog_fh, LOCK_UN);
         }
     }
 
     my $exlock;
     my $exlockfile;
     sub define_global_lockfile {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         $exlockfile = shift;
     }
 
     sub set_global_lock ($self, $msg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         die ("Global lock file unknown") if not defined($exlockfile);
         $msg = '' if not defined($msg);
 
@@ -240,20 +304,22 @@ package PkgCacher {
     }
 
     sub release_global_lock {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         debug_message("Exiting critical section") if defined (&debug_message);
         flock($exlock, LOCK_UN);
     }
 
-    sub setup_ownership {
-        my $uid=$cfg->{user};
-        my $gid=$cfg->{group};
+    our sub setup_ownership ($self) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        my $uid=$cfg->{'user'};
+        my $gid=$cfg->{'group'};
 
         if ($cfg->{'chroot'}) {
             if ($uid || $gid) {
                 # open them now, before it is too late
                 # FIXME: reopening won't work, but the lose of file handles needs to be
                 # made reproducible first
-                &open_log_files;
+                $self->open_log_files;
             }
             chroot $cfg->{'chroot'} || die "Unable to chroot, aborting.\n";
             chdir $cfg->{'chroot'};
@@ -261,11 +327,11 @@ package PkgCacher {
 
         if ($gid) {
             if ($gid =~ /^\d+$/) {
-                my $name=getgrgid($gid);
+                my $name = getgrgid($gid);
                 die "Unknown group ID: $gid (exiting)\n" if !$name;
             } else {
                 $gid=getgrnam($gid);
-                die "No such group (exiting)\n" if !defined($gid);
+                die "No such group (exiting)\n" if not defined($gid);
             }
             $) = "$gid $gid";
             $( = $gid;
@@ -274,7 +340,7 @@ package PkgCacher {
 
         if ($uid) {
             if($uid=~/^\d+$/) {
-                my $name=getpwuid($uid);
+                my $name = getpwuid($uid);
                 die "Unknown user ID: $uid (exiting)\n" if !$name;
             } else {
                 $uid=getpwnam($uid);
@@ -287,17 +353,20 @@ package PkgCacher {
     }
 
     sub barf {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $errs = shift;
         die "--- $0: Fatal: $errs\n";
     }
 
     sub is_index_file ($filename) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $index_files_regexp = '(?:'.read_patterns('index_files.regexp').')$';
         return ($filename =~ /$index_files_regexp/);
     }
 
     #### common code for installation scripts ####
     sub remove_apache {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         foreach my $apache ("apache", "apache-ssl", "apache2") {
             # Remove the include lines from httpd.conf
             my $httpdconf = "/etc/$apache/httpd.conf";

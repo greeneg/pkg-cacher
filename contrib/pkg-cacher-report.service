@@ -3,4 +3,5 @@ Description=Generate pkg-cacher statistics report
 
 [Service]
 Type=oneshot
+EnvironmentFile="/etc/sysconfig/pkg-cacher"
 ExecStart=/usr/share/pkg-cacher/pkg-cacher-report.pl

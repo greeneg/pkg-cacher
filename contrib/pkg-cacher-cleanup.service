@@ -6,4 +6,5 @@ Type=oneshot
 Nice=19
 IOSchedulingClass=2
 IOSchedulingPriority=7
+EnvironmentFile="/etc/sysconfig/pkg-cacher"
 ExecStart=/usr/share/pkg-cacher/pkg-cacher-cleanup.pl

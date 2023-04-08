@@ -6,6 +6,7 @@ RequiresMountsFor=/var/cache/pkg-cacher
 
 [Service]
 Type=simple
+EnvironmentFile="/etc/sysconfig/pkg-cacher"
 ExecStart=/usr/sbin/pkg-cacher
 User=pkg-cacher
 Group=pkg-cacher
