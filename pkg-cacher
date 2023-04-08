@@ -1,5 +1,4 @@
-#!/usr/bin/perl
-# vim: ts=4 sw=4 ai si
+#!/usr/bin/env perl
 
 =head1 NAME
 
@@ -8,93 +7,104 @@
  Copyright (C) 2005 Eduard Bloch <blade@debian.org>
  Copyright (C) 2007 Mark Hindley <mark@hindley.org.uk>
  Copyright (C) 2008-2013 Robert Nelson <robertn@the-nelsons.org>
+
+ Forked by Gary Greene <greeneg@tolharadys.net>
+ Copyright (C) 2023 Gary Greene <greeneg@tolharadys.net>
+
  Distributed under the terms of the GNU Public Licence (GPL).
 
 =cut
 # ----------------------------------------------------------------------------
 
-use strict;
-use warnings;
-use lib '/usr/share/pkg-cacher/';
+package main {
+    use strict;
+    use warnings;
 
-use Fcntl qw(:DEFAULT :flock);
+    use feature ":5.28";
+    use feature 'lexical_subs';
+    use feature 'signatures';
+    no warnings "experimental::signatures";
 
-use IO::Socket::INET;
-use HTTP::Response;
-use HTTP::Date;
+    use boolean;
 
-use Sys::Hostname;
+    use Fcntl qw(:DEFAULT :flock);
 
-use File::Path;
+    use IO::Socket::INET;
+    use HTTP::Response;
+    use HTTP::Date;
 
-# Include the library for the config file parser
-require 'pkg-cacher-lib.pl';
+    use Sys::Hostname;
 
-# Set some defaults
-our $version="x";
+    use File::Path;
 
-my $configfile_default = '/etc/pkg-cacher/pkg-cacher.conf';
+    use lib '/usr/share/pkg-cacher/';
 
-our $configfile = $configfile_default;
+    # Include the library for the config file parser
+    require 'pkg-cacher-lib.pl';
 
-my $mode='sa'; # cgi|inetd|sa
+    # Set some defaults
+    our $version="x";
 
-# Needs to be global for &setup_ownership
-our $cfg;
-our %pathmap;
+    my $configfile_default = '/etc/pkg-cacher/pkg-cacher.conf';
 
-my @extraconfig;
+    our $configfile = $configfile_default;
 
-my ($aclog_fh, $erlog_fh);
-my $con;
+    my $mode='sa'; # cgi|inetd|sa
 
-# List of sockets listening, one for each daemon address
-my @daemons;
-my $server_pid;
+    # Needs to be global for &setup_ownership
+    our $cfg;
+    our %pathmap;
 
-my @childPids;
-my $terminating;
+    my @extraconfig;
 
-require 'pkg-cacher-request.pl';
+    my ($aclog_fh, $erlog_fh);
+    my $con;
 
-# Subroutines
+    # List of sockets listening, one for each daemon address
+    my @daemons;
+    my $server_pid;
 
-sub setup {
-	my $redo = $_[0];
-	my $pidfile;
-	my $chroot;
-	my $retnum;
-	my $do_fork_away;
-	my $newcfg;
+    my @childPids;
+    my $terminating;
 
-	if (!$redo) {
-		if ($ENV{CGI_MODE}) {
-			# yahoo, back to the roots, CGI mode
-			$mode = 'cgi';
-		} else {
-			local @ARGV = @ARGV; # Use a copy so @ARGV not destroyed
-			while (scalar (@ARGV)) {
+    require 'pkg-cacher-request.pl';
 
-				my $arg=shift(@ARGV);
+    # Subroutines
 
-				if ($arg eq '-c') {
-					$configfile=shift(@ARGV);
-					die "$configfile unreadable" if ! -r $configfile;
-				} elsif ($arg eq '-r') {
-					$chroot=shift(@ARGV);
-					die "No such directory: $chroot\n" if ! -d $chroot;
-				} elsif ($arg eq '-R') {
-					$retnum=shift(@ARGV);
-				} elsif ($arg eq '-i') {
-					$mode = 'inetd';
-				} elsif ($arg eq '-d') {
-					$do_fork_away=1;
-				} elsif ($arg eq '-p') {
-					$pidfile=shift(@ARGV);
-				} elsif ($arg=~/(\S+)=(\S+)/) {
-					push(@extraconfig, $1, $2);
-				} elsif ($arg eq '-h' || $arg eq '--help') {
-					print <<EOM;
+    sub setup ($redo) {
+        my $pidfile;
+        my $chroot;
+        my $retnum;
+        my $do_fork_away;
+        my $newcfg;
+
+        if (not $redo) {
+            if ($ENV{'CGI_MODE'}) {
+                # yahoo, back to the roots, CGI mode
+                $mode = 'cgi';
+            } else {
+                local @ARGV = @ARGV; # Use a copy so @ARGV not destroyed
+                while (scalar (@ARGV)) {
+                    my $arg=shift(@ARGV);
+
+                    if ($arg eq '-c') {
+                        $configfile=shift(@ARGV);
+                        die "$configfile unreadable" if ! -r $configfile;
+                    } elsif ($arg eq '-r') {
+                        $chroot=shift(@ARGV);
+                        die "No such directory: $chroot\n" if ! -d $chroot;
+                    } elsif ($arg eq '-R') {
+                        $retnum=shift(@ARGV);
+                    } elsif ($arg eq '-i') {
+                        $mode = 'inetd';
+                    } elsif ($arg eq '-d') {
+                        $do_fork_away=1;
+                    } elsif ($arg eq '-p') {
+                        $pidfile=shift(@ARGV);
+                    } elsif ($arg=~/(\S+)=(\S+)/) {
+                        push(@extraconfig, $1, $2);
+                    } elsif ($arg eq '-h' || $arg eq '--help') {
+                        print <<EOM;
 USAGE: $0 <options> <override(s)>
 Options:
 
@@ -112,320 +122,320 @@ Advanced options (root only):
 -p pidfile      write the server process ID into this file
 
 Overrides:     override config variables (see config file), eg. daemon_port=9999
-
 EOM
-					exit(0);
-				} else {
-					die "Unknown parameter $arg\n";
-				}
-			}
-		}
-	}
+                        exit 0;
+                    } else {
+                        die "Unknown parameter $arg\n";
+                    }
+                }
+            }
+        }
 
-	eval {
-		$newcfg = read_config($configfile);
-	};
+        eval {
+            $newcfg = read_config($configfile);
+        };
 
-	# not sure what to do if we can't read the config file...
-	die "Could not read config file: $@" if $@;
+        # not sure what to do if we can't read the config file...
+        die "Could not read config file: $@" if $@;
 
-	if (!$redo) {
-		define_global_lockfile("$newcfg->{cache_dir}/exlock");
+        if (not $redo) {
+            define_global_lockfile("$newcfg->{cache_dir}/exlock");
 
-		# Now set some things from the command line
-		$newcfg->{pidfile} = $pidfile if $pidfile;
-		$newcfg->{fork} = $do_fork_away if $do_fork_away;
-		$newcfg->{retry} = $retnum if $retnum;
-		$newcfg->{chroot} = $chroot if $chroot;
-	}
+            # Now set some things from the command line
+            $newcfg->{pidfile} = $pidfile if $pidfile;
+            $newcfg->{fork} = $do_fork_away if $do_fork_away;
+            $newcfg->{retry} = $retnum if $retnum;
+            $newcfg->{chroot} = $chroot if $chroot;
+        }
 
-	# override config values with the user-specified parameters
-	my @extras = @extraconfig;
-	while (@extras) {
-		my $k = shift(@extras);
-		my $v = shift(@extras);
-		$newcfg->{$k} = $v;
-	}
+        # override config values with the user-specified parameters
+        my @extras = @extraconfig;
+        while (@extras) {
+            my $k = shift(@extras);
+            my $v = shift(@extras);
+            $newcfg->{$k} = $v;
+        }
 
-	# allow cgi scripts to override configuration variables
-	if ($mode eq 'cgi') {
-		foreach my $key (keys %ENV) {
-			if ($key =~ /^PKG_CACHER_([A-Z]+)$/) {
-				$newcfg->{lc $1} = $ENV{$key};
-			}
-		}
-	}
+        # allow cgi scripts to override configuration variables
+        if ($mode eq 'cgi') {
+            foreach my $key (keys %ENV) {
+                if ($key =~ /^PKG_CACHER_([A-Z]+)$/) {
+                    $newcfg->{lc $1} = $ENV{$key};
+                }
+            }
+        }
 
-	if (!$redo) {
-		my $uid = $newcfg->{user} =~ /^\d+$/ ? $newcfg->{user} : getpwnam($newcfg->{group});
-		my $gid = $newcfg->{group} =~ /^\d+$/ ? $newcfg->{group} : getgrnam($newcfg->{group});
+        if (not $redo) {
+            my $uid = $newcfg->{'user'} =~ /^\d+$/ ? $newcfg->{'user'} : getpwnam($newcfg->{'group'});
+            my $gid = $newcfg->{'group'} =~ /^\d+$/ ? $newcfg->{'group'} : getgrnam($newcfg->{'group'});
 
-		$cfg = $newcfg;
+            $cfg = $newcfg;
 
-		# Ensure config is sane and filesystem is present and readable
-		&check_install;
+            # Ensure config is sane and filesystem is present and readable
+            check_install();
 
-		# Die if it still failed
-		die "$0: No $newcfg->{cache_dir} directory!\n" if (!-d "$newcfg->{cache_dir}");
-	} else {
-		# Only allow some configuration items to be overridden when config is reread
+            # Die if it still failed
+            die "$0: No $newcfg->{cache_dir} directory!\n" if (!-d "$newcfg->{cache_dir}");
+        } else {
+            # Only allow some configuration items to be overridden when config is reread
+            my @reread_items = (
+                'allowed_hosts', 'denied_hosts', 'allowed_hosts_6', 'denied_hosts_6',
+                'offline_mode', 'expire_hours',
+                'http_proxy', 'use_proxy', 'http_proxy_auth', 'use_proxy_auth',
+                'https_proxy', 'https_proxy_auth', 'require_valid_ssl',
+                'limit', 'debug', 'path_map'
+            );
 
-		my @reread_items = (
-			'allowed_hosts', 'denied_hosts', 'allowed_hosts_6', 'denied_hosts_6',
-			'offline_mode', 'expire_hours',
-			'http_proxy', 'use_proxy', 'http_proxy_auth', 'use_proxy_auth',
-			'https_proxy', 'https_proxy_auth', 'require_valid_ssl',
-			'limit', 'debug', 'path_map' );
+            foreach my $item (@reread_items) {
+                $cfg->{$item} = $newcfg->{$item};
+            }
+        }
 
-		foreach my $item (@reread_items) {
-			$cfg->{$item} = $newcfg->{$item};
-		}
-	}
-
-	if ($cfg->{path_map}) {
-		for (split(/\s*[,;]\s*/, $cfg->{path_map})) {
-			my @tmp = split(/\s+/, $_);
-			# must have at least one path and target
-			next if ($#tmp < 1);
-			my $key=shift(@tmp);
-			$pathmap{$key}=[@tmp];
-		}
-	}
-
-}
-
-sub term_handler {
-	$terminating=1;
-
-	# close all connections or shutdown the server if parent and kill
-	debug_message('received SIGTERM, terminating');
-	$con->close if defined($con);
-
-	if ($server_pid && $server_pid == $$) {
-		for (@daemons) {$_->shutdown(2)};
-	}
-
-	for (@childPids) {
-		&debug_message("killing subprocess: $_");
-		kill 15, $_;
-	};
-	exit(0);
-}
-
-sub reload_config {
-	info_message('Got SIGHUP, reloading config');
-	&setup(1);
-}
-
-sub toggle_debug {
-	$cfg->{debug} = !$cfg->{debug};
-	info_message('Got SIGUSR1, '.($cfg->{debug} ? 'en':'dis').'abling debug output');
-}
-
-# Jon's extra stuff to write the event to a log file.
-sub writeaccesslog {
-	my $cache_status = shift;
-	my $filename = shift;
-	my $filesize = shift;
-	my $client = shift;
-
-# The format is 'time|cache status (HIT, MISS or EXPIRED)|client IP address|file size|name of requested file'
-	my $time = localtime;
-
-	flock($aclog_fh, LOCK_EX);
-	print $aclog_fh "$time|$$|$client|$cache_status|$filesize|$filename\n";
-	flock($aclog_fh, LOCK_UN);
-}
-
-# Jon's extra stuff to write errors to a log file.
-sub writeerrorlog {
-	my $message = shift;
-
-	my $time = localtime;
-
-# Prevent double newline
-	chomp $message;
-
-	if (!defined $erlog_fh) {
-		print STDERR "$message\n"; # Better than nothing
-		return;
-	}
-	flock($erlog_fh, LOCK_EX);
-	# files may need to be reopened sometimes - reason unknown yet, EBADF
-	# results
-	syswrite($erlog_fh,"$time|$message\n") || &open_log_files;
-	flock($erlog_fh, LOCK_UN);
-}
-
-# Stuff to append debug messages to the error log.
-sub debug_message {
-	if ($cfg->{debug}) {
-		my $message = shift;
-		&writeerrorlog("debug [$$]: $message");
-	}
-}
-
-sub info_message {
-	my $message = shift;
-	writeerrorlog("info [$$]: $message");
-}
-
-sub error_message {
-	my $message = shift;
-	writeerrorlog("error [$$]: $message");
-}
-
-sub open_log_files {
-	my $logfile = "$cfg->{logdir}/access.log";
-	my $errorfile = "$cfg->{logdir}/error.log";
-
-	if (!$erlog_fh) {
-		open($erlog_fh,">>$errorfile") or barf("Unable to open $errorfile, $!");
-	}
-	if (!$aclog_fh) {
-		open($aclog_fh,">>$logfile") or barf("Unable to open $logfile, $!");
-	}
-	# Install signal handlers to capture error messages
-	$SIG{__WARN__} = sub {writeerrorlog("warn [$$]: ".shift)};
-	$SIG{__DIE__} = sub {writeerrorlog("error [$$]: ".shift)};
-}
-
-sub io_socket_inet46 {
-	# Test if IPv6 is available and use if it is
-	if (eval{require IO::Socket::INET6}) {
-		import IO::Socket::INET6;
-		debug_message('Using IPv6');
-		return  IO::Socket::INET6->new(@_);
-	} else {
-		return IO::Socket::INET->new(@_);
-	}
-}
-
-# BEGIN MAIN PART
-
-# Read config and command line, setup variables
-&setup(0);
-
-# Output data as soon as we print it
-$| = 1;
-
-#Signal Handlers
-$SIG{CHLD} = 'IGNORE';
-$SIG{TERM} = \&term_handler;
-$SIG{HUP} = \&reload_config;
-$SIG{USR1} = \&toggle_debug;
-$SIG{PIPE} = sub {debug_message "Got SIGPIPE!"};
-
-
-if ($mode eq 'cgi' && defined($cfg->{cgi_advise_to_use}) && $cfg->{cgi_advise_to_use}) {
-	print "Status: 410 $cfg->{cgi_advise_to_use}\r\n\r\n";
-	exit(0);
-}
-
-if ($mode ne 'sa') {
-	open (STDERR, '>/dev/null') || die $!;
-	&setup_ownership;
-	&open_log_files;
-	&handle_connection($mode);
-	exit(0);
-}
-
-$server_pid=$$;
-
-for my $daemon_addr ($cfg->{daemon_addr} ?
-		(grep !/^\s*$/, # Weed empty or just whitespace
-			(split /\s*[,;]\s*/, $cfg->{daemon_addr})) :
-		undef # ensure run once
-		) {
-
-	my $daemon;
-	my %daemonopts = (	LocalPort => $cfg->{daemon_port},
-						Proto => 'tcp',
-						Listen => 1,
-						ReuseAddr => 1);
-	$daemonopts{LocalAddr}=$daemon_addr if(defined($daemon_addr));
-
-	my $retnum = $cfg->{retry};
-	while (1) {
-		$daemon = io_socket_inet46(%daemonopts);
-		last if $daemon;
-		$retnum--;
-		last if($retnum<=0);
-		print STDERR "Unable to bind socket ($daemon_addr port $cfg->{daemon_port}), trying again in 5 seconds.\n";
-		sleep 5;
-	}
-	die 'Unable to bind socket ('.(defined($daemon_addr) ? $daemon_addr.' ' : '')."port $cfg->{daemon_port}), $0 not started.\n" if ! $daemon;
-	push @daemons, $daemon;
-
-	my $last;
-	if (!$daemon_addr ||
-		$cfg->{daemon_addr} =~ /$daemon_addr[\s,;]*$/) { # last, empty or only address
-		$last=1;
-		goto NO_FORK unless $cfg->{fork};
-	}
-	debug_message 'fork listener '.(defined($daemon_addr) ? $daemon_addr : '')."\n";
-	my $pid = fork(); # for each daemon_addr
-	if ($pid <0) {
-		barf('fork() failed');
-	}
-	if ($pid > 0) {
-		# parent
-		push @childPids, $pid;
-		next;
-	}
-	# child
-	undef @childPids;
-
-	{
-		no warnings 'io'; # Silence the reopen warning
-		close (STDIN);
-		open (STDOUT, '>/dev/null') || die $!;
-		open (STDERR, '>/dev/null') || die $!;
-	}
-
-	NO_FORK:
-	if ($cfg->{pidfile} && $last) {
-		open(my $fh, ">$cfg->{pidfile}") || die "Unable to open $cfg->{pidfile}, $!";
-		print $fh $$;
-		close($fh);
+        if ($cfg->{'path_map'}) {
+            for (split(/\s*[,;]\s*/, $cfg->{'path_map'})) {
+                my @tmp = split(/\s+/, $_);
+                # must have at least one path and target
+                next if ($#tmp < 1);
+                my $key=shift(@tmp);
+                $pathmap{$key}=[@tmp];
+            }
+        }
     }
-	
-	&setup_ownership;
-	&open_log_files;
 
-	# State: READY
-	# That is the working condition (daemon mode)
+    sub term_handler {
+        $terminating=1;
 
-	debug_message("Pkg-Cacher version $version started with Debug output enabled, accepting connections on " . $daemon->sockhost . ':' . $daemon->sockport);
+        # close all connections or shutdown the server if parent and kill
+        debug_message('received SIGTERM, terminating');
+        $con->close if defined($con);
 
-	while (1) {
+        if ($server_pid && $server_pid == $$) {
+            for my $p (@daemons) {$p->shutdown(2)};
+        }
 
-		my $newcon = $daemon->accept;
-		# we don't stop, only by term_handler since the accept method is unreliable
-		next if (!$newcon);
-		last if $terminating;
+        for my $children (@childPids) {
+            debug_message("killing subprocess: $children");
+            kill 15, $children;
+        };
+        exit 0;
+    }
 
-		debug_message('Connection from '.$newcon->peerhost);
+    sub reload_config {
+        info_message('Got SIGHUP, reloading config');
+        setup(1);
+    }
 
-		my $pid = fork();
-		if ($pid < 0) {
-			barf('fork() failed');
-		}
+    sub toggle_debug {
+        $cfg->{'debug'} = not $cfg->{'debug'};
+        info_message('Got SIGUSR1, ' . ($cfg->{'debug'} ? 'en':'dis') . 'abling debug output');
+    }
 
-		if ($pid > 0) {
-			# parent
-			debug_message("registered child process: $pid");
-			push @childPids, $pid;
-			next;
-		}
-		# child
-		undef @childPids;
+    # Jon's extra stuff to write the event to a log file.
+    sub writeaccesslog {
+        my $cache_status = shift;
+        my $filename = shift;
+        my $filesize = shift;
+        my $client = shift;
 
-		&handle_connection($mode, $newcon);
-		exit(0);
+        # The format is 'time|cache status (HIT, MISS or EXPIRED)|client IP address|file size|name of requested file'
+        my $time = localtime;
 
-	}
+        flock($aclog_fh, LOCK_EX);
+        say $aclog_fh "$time|$$|$client|$cache_status|$filesize|$filename";
+        flock($aclog_fh, LOCK_UN);
+    }
+
+    # Jon's extra stuff to write errors to a log file.
+    sub writeerrorlog {
+        my $message = shift;
+
+        my $time = localtime;
+
+        # Prevent double newline
+        chomp $message;
+
+        if (!defined $erlog_fh) {
+            say STDERR "$message"; # Better than nothing
+            return;
+        }
+        flock($erlog_fh, LOCK_EX);
+        # files may need to be reopened sometimes - reason unknown yet, EBADF
+        # results
+        syswrite($erlog_fh,"$time|$message\n") || open_log_files();
+        flock($erlog_fh, LOCK_UN);
+    }
+
+    # Stuff to append debug messages to the error log.
+    sub debug_message {
+        if ($cfg->{'debug'}) {
+            my $message = shift;
+            writeerrorlog("debug [$$]: $message");
+        }
+    }
+
+    sub info_message {
+        my $message = shift;
+        writeerrorlog("info [$$]: $message");
+    }
+
+    sub error_message {
+        my $message = shift;
+        writeerrorlog("error [$$]: $message");
+    }
+
+    sub open_log_files {
+        my $logfile = "$cfg->{logdir}/access.log";
+        my $errorfile = "$cfg->{logdir}/error.log";
+
+        if (not $erlog_fh) {
+            open($erlog_fh,">>$errorfile") or barf("Unable to open $errorfile, $!");
+        }
+        if (not $aclog_fh) {
+            open($aclog_fh,">>$logfile") or barf("Unable to open $logfile, $!");
+        }
+        # Install signal handlers to capture error messages
+        $SIG{__WARN__} = sub {writeerrorlog("warn [$$]: ".shift)};
+        $SIG{__DIE__} = sub {writeerrorlog("error [$$]: ".shift)};
+    }
+
+    sub io_socket_inet46 {
+        # Test if IPv6 is available and use if it is
+        if (eval{require IO::Socket::INET6}) {
+            import IO::Socket::INET6;
+            debug_message('Using IPv6');
+            return  IO::Socket::INET6->new(@_);
+        } else {
+            return IO::Socket::INET->new(@_);
+        }
+    }
+
+    # BEGIN MAIN PART
+
+    # Read config and command line, setup variables
+    setup(0);
+
+    # Output data as soon as we print it
+    $| = 1;
+
+    #Signal Handlers
+    $SIG{CHLD} = 'IGNORE';
+    $SIG{TERM} = \&term_handler;
+    $SIG{HUP} = \&reload_config;
+    $SIG{USR1} = \&toggle_debug;
+    $SIG{PIPE} = sub {debug_message "Got SIGPIPE!"};
+
+    if ($mode eq 'cgi' && defined($cfg->{cgi_advise_to_use}) && $cfg->{cgi_advise_to_use}) {
+        print "Status: 410 $cfg->{cgi_advise_to_use}\r\n\r\n";
+        exit 0;
+    }
+
+    if ($mode ne 'sa') {
+        open (STDERR, '>/dev/null') || die $!;
+        setup_ownership();
+        open_log_files();
+        handle_connection($mode);
+        exit 0;
+    }
+
+    $server_pid=$$;
+
+    for my $daemon_addr ($cfg->{'daemon_addr'} ?
+            (grep !/^\s*$/, # Weed empty or just whitespace
+            (split /\s*[,;]\s*/, $cfg->{'daemon_addr'})) :
+            undef # ensure run once
+    ) {
+        my $daemon;
+        my %daemonopts = ( LocalPort => $cfg->{'daemon_port'},
+                           Proto => 'tcp',
+                           Listen => 1,
+                           ReuseAddr => 1);
+        $daemonopts{'LocalAddr'} = $daemon_addr if (defined($daemon_addr));
+
+        my $retnum = $cfg->{'retry'};
+        while (true) {
+            $daemon = io_socket_inet46(%daemonopts);
+            last if $daemon;
+            $retnum--;
+            last if ($retnum <= 0);
+            print STDERR "Unable to bind socket ($daemon_addr port $cfg->{daemon_port}), trying again in 5 seconds.\n";
+            sleep 5;
+        }
+        die 'Unable to bind socket (' . (
+            defined($daemon_addr) ? $daemon_addr.' ' : ''
+            ) . "port $cfg->{'daemon_port'} ), $0 not started.\n" if not $daemon;
+        push @daemons, $daemon;
+
+        my $last;
+        if (not $daemon_addr || $cfg->{'daemon_addr'} =~ /$daemon_addr[\s,;]*$/) {
+            # last, empty or only address
+            $last = 1;
+            goto NO_FORK unless $cfg->{'fork'};
+        }
+        debug_message 'fork listener ' . (defined($daemon_addr) ? $daemon_addr : '') . "\n";
+        my $pid = fork(); # for each daemon_addr
+        if ($pid < 0) {
+            barf('fork() failed');
+        }
+        if ($pid > 0) {
+            # parent
+            push @childPids, $pid;
+            next;
+        }
+        # child
+        undef @childPids;
+
+        {
+            no warnings 'io'; # Silence the reopen warning
+            close (STDIN);
+            open (STDOUT, '>/dev/null') || die $!;
+            open (STDERR, '>/dev/null') || die $!;
+        }
+
+        NO_FORK:
+        if ($cfg->{'pidfile'} && $last) {
+            open(my $fh, ">$cfg->{'pidfile'}") || die "Unable to open $cfg->{'pidfile'}, $!";
+            print $fh $$;
+            close $fh;
+        }
+
+        setup_ownership();
+        open_log_files();
+
+        # State: READY
+        # That is the working condition (daemon mode)
+
+        debug_message(
+            "Pkg-Cacher version $version started with Debug output enabled, accepting connections on " .
+              $daemon->sockhost . ':' . $daemon->sockport
+        );
+
+        while (true) {
+            my $newcon = $daemon->accept;
+            # we don't stop, only by term_handler since the accept method is unreliable
+            next if (!$newcon);
+            last if $terminating;
+
+            debug_message('Connection from '.$newcon->peerhost);
+
+            my $pid = fork();
+            if ($pid < 0) {
+                barf('fork() failed');
+            }
+
+            if ($pid > 0) {
+                # parent
+                debug_message("registered child process: $pid");
+                push @childPids, $pid;
+                next;
+            }
+            # child
+            undef @childPids;
+
+            handle_connection($mode, $newcon);
+            exit 0;
+        }
+    }
+
+    # exit from the daemon loop
+    exit 0;
 }
-
-# exit from the daemon loop
-exit(0);
