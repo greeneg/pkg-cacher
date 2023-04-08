@@ -135,20 +135,20 @@ EOM
         }
 
         eval {
-            $newcfg = read_config($configfile);
+            $newcfg = $pkg_cacher->read_config($configfile);
         };
 
         # not sure what to do if we can't read the config file...
         die "Could not read config file: $@" if $@;
 
         if (not $redo) {
-            define_global_lockfile("$newcfg->{cache_dir}/exlock");
+            $pkg_cacher->define_global_lockfile("$newcfg->{cache_dir}/exlock");
 
             # Now set some things from the command line
-            $newcfg->{pidfile} = $pidfile if $pidfile;
-            $newcfg->{fork} = $do_fork_away if $do_fork_away;
-            $newcfg->{retry} = $retnum if $retnum;
-            $newcfg->{chroot} = $chroot if $chroot;
+            $newcfg->{'pidfile'} = $pidfile if $pidfile;
+            $newcfg->{'fork'} = $do_fork_away if $do_fork_away;
+            $newcfg->{'retry'} = $retnum if $retnum;
+            $newcfg->{'chroot'} = $chroot if $chroot;
         }
 
         # override config values with the user-specified parameters
@@ -175,7 +175,7 @@ EOM
             $cfg = $newcfg;
 
             # Ensure config is sane and filesystem is present and readable
-            check_install();
+            $pkg_cacher->check_install($cfg);
 
             # Die if it still failed
             die "$0: No $newcfg->{cache_dir} directory!\n" if (!-d "$newcfg->{cache_dir}");
@@ -268,14 +268,6 @@ EOM
         flock($erlog_fh, LOCK_UN);
     }
 
-    # Stuff to append debug messages to the error log.
-    sub debug_message {
-        if ($cfg->{'debug'}) {
-            my $message = shift;
-            writeerrorlog("debug [$$]: $message");
-        }
-    }
-
     sub info_message {
         my $message = shift;
         writeerrorlog("info [$$]: $message");
@@ -305,7 +297,7 @@ EOM
         # Test if IPv6 is available and use if it is
         if (eval{require IO::Socket::INET6}) {
             import IO::Socket::INET6;
-            debug_message('Using IPv6');
+            $pkg_cacher->debug_message('Using IPv6');
             return  IO::Socket::INET6->new(@_);
         } else {
             return IO::Socket::INET->new(@_);
@@ -325,7 +317,7 @@ EOM
     $SIG{TERM} = \&term_handler;
     $SIG{HUP} = \&reload_config;
     $SIG{USR1} = \&toggle_debug;
-    $SIG{PIPE} = sub {debug_message "Got SIGPIPE!"};
+    $SIG{PIPE} = sub { $pkg_cacher->debug_message("Got SIGPIPE!") };
 
     if ($mode eq 'cgi' && defined($cfg->{cgi_advise_to_use}) && $cfg->{cgi_advise_to_use}) {
         print "Status: 410 $cfg->{cgi_advise_to_use}\r\n\r\n";
@@ -360,7 +352,7 @@ EOM
             last if $daemon;
             $retnum--;
             last if ($retnum <= 0);
-            print STDERR "Unable to bind socket ($daemon_addr port $cfg->{daemon_port}), trying again in 5 seconds.\n";
+            say STDERR "Unable to bind socket ($daemon_addr port $cfg->{daemon_port}), trying again in 5 seconds";
             sleep 5;
         }
         die 'Unable to bind socket (' . (
@@ -374,7 +366,7 @@ EOM
             $last = 1;
             goto NO_FORK unless $cfg->{'fork'};
         }
-        debug_message 'fork listener ' . (defined($daemon_addr) ? $daemon_addr : '') . "\n";
+        $pkg_cacher->debug_message('fork listener ' . (defined($daemon_addr) ? $daemon_addr : '') . "\n");
         my $pid = fork(); # for each daemon_addr
         if ($pid < 0) {
             barf('fork() failed');
@@ -407,7 +399,7 @@ EOM
         # State: READY
         # That is the working condition (daemon mode)
 
-        debug_message(
+        $pkg_cacher->debug_message(
             "Pkg-Cacher version $version started with Debug output enabled, accepting connections on " .
               $daemon->sockhost . ':' . $daemon->sockport
         );
@@ -418,7 +410,7 @@ EOM
             next if (!$newcon);
             last if $terminating;
 
-            debug_message('Connection from '.$newcon->peerhost);
+            $pkg_cacher->debug_message('Connection from '.$newcon->peerhost);
 
             my $pid = fork();
             if ($pid < 0) {
@@ -427,7 +419,7 @@ EOM
 
             if ($pid > 0) {
                 # parent
-                debug_message("registered child process: $pid");
+                $pkg_cacher->debug_message("registered child process: $pid");
                 push @childPids, $pid;
                 next;
             }

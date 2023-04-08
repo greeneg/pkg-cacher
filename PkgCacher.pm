@@ -21,7 +21,10 @@ package PkgCacher {
     no warnings "experimental::signatures";
 
     use boolean;
+    use Data::Dumper;
     use Fcntl qw(:flock);
+
+    use File::Basename;
 
     our $cfg;
 
@@ -32,7 +35,7 @@ package PkgCacher {
         return $self;
     }
 
-    sub read_patterns ($self, $filename) {
+    our sub read_patterns ($self, $filename) {
         my $file = '/usr/share/pkg-cacher/' . $filename;
         my @pattern;
 
@@ -48,10 +51,10 @@ package PkgCacher {
         return join('|', @pattern);
     }
 
-    sub read_config ($config_file) {
+    our sub read_config ($self, $config_file) {
         # set the default config variables
         my %config = (
-            cache_dir => '/var/log/cache/pkg-cacher',
+            cache_dir => '/var/cache/pkg-cacher',
             logdir => '/var/log/pkg-cacher',
             admin_email => 'root@localhost',
             generate_reports => 0,
@@ -79,15 +82,15 @@ package PkgCacher {
         $buf =~ s/\\\n#/\n#/mg; # fix broken multilines
         $buf =~ s/\\\n//mg; # merge multilines
 
-        for (split(/\n/, $buf)) {
-            next if(/^#/); # weed out whole comment lines immediately
+        foreach my $token (split(/\n/, $buf)) {
+            next if ($token =~ m/^#/); # weed out whole comment lines immediately
 
-            s/#.*//;   # kill off comments
-            s/^\s+//;	# kill off leading spaces
-            s/\s+$//;	# kill off trailing spaces
+            $token =~ s/#.*//;  # kill off comments
+            $token =~ s/^\s+//;	# kill off leading spaces
+            $token =~ s/\s+$//;	# kill off trailing spaces
 
-            if ($_) {
-                my ($key, $value) = split(/\s*=\s*/);	# split into key and value pair
+            if ($token) {
+                my ($key, $value) = split(/\s*=\s*/, $token);	# split into key and value pair
                 $value = 0 unless ($value);
                 #print "key: $key, value: $value\n";
                 $config{$key} = $value;
@@ -102,33 +105,41 @@ package PkgCacher {
 
     # check directories exist and are writable
     # Needs to run as root as parent directories may not be writable
-    sub check_install() {
+    our sub check_install ($self, $cfg) {
         # Die if we have not been configured correctly
-        die "$0: No cache_dir directory!\n" if (!-d $cfg->{cache_dir});
+        say STDERR "DEBUG: ". Dumper($cfg) if $ENV{'DEBUG'};
+        if (exists $cfg->{'cache_dir'} && defined $cfg->{'cache_dir'}) {
+            say STDERR basename($PROGRAM_NAME) . ": No cache_dir directory! Exiting" if (not -d $cfg->{'cache_dir'});
+            exit 2;
+        } else {
+            say STDERR basename($PROGRAM_NAME) . ": No cache_dir is configured! Exiting";
+            exit 1;
+        }
 
-        my $uid = $cfg->{user}=~/^\d+$/ ? $cfg->{user} : getpwnam($cfg->{group});
-        my $gid = $cfg->{group}=~/^\d+$/ ? $cfg->{group} : getgrnam($cfg->{group});
+        my $uid = $cfg->{'user'}  =~ /^\d+$/ ? $cfg->{'user'} : getpwnam($cfg->{'group'});
+        my $gid = $cfg->{'group'} =~ /^\d+$/ ? $cfg->{'group'} : getgrnam($cfg->{'group'});
 
-        if (!defined ($uid || $gid)) {
-            die "Unable to get user:group";
+        if (not defined ($uid || $gid)) {
+            say STDERR "Unable to get user:group";
+            exit 1;
         }
 
         foreach my $dir ($cfg->{cache_dir}, $cfg->{logdir},
                 "$cfg->{cache_dir}/headers", "$cfg->{cache_dir}/packages",
                 "$cfg->{cache_dir}/private", "$cfg->{cache_dir}/temp",
                 "$cfg->{cache_dir}/cache") {
-            if (!-d $dir) {
-                print "Warning: $dir missing. Doing mkdir($dir, 0755)\n";
+            if (not -d $dir) {
+                say "Warning: $dir missing. Doing mkdir($dir, 0755)";
                 mkdir($dir, 0755) || die "Unable to create $dir";
-                chown ($uid, $gid, $dir) || die "Unable to set ownership for $dir";
+                chown($uid, $gid, $dir) || die "Unable to set ownership for $dir";
             }
         }
         for my $file ("$cfg->{logdir}/access.log", "$cfg->{logdir}/error.log") {
             if (!-e $file) {
-                print "Warning: $file missing. Creating.\n";
+                say "Warning: $file missing. Creating";
                 open(my $tmp, ">$file") || die "Unable to create $file";
                 close($tmp);
-                chown ($uid, $gid, $file) || die "Unable to set ownership for $file";
+                chown($uid, $gid, $file) || die "Unable to set ownership for $file";
             }
         }
     }
@@ -199,32 +210,34 @@ package PkgCacher {
         return {split(/ /, ${$_[0]})};
     }
 
+    # Stuff to append debug messages to the error log.
+    our sub debug_message ($self, $cfg, $msg) {
+        if ($cfg->{'debug'}) {
+            writeerrorlog("debug [$PROCESS_ID]: $msg");
+        }
+    }
 
-my $exlock;
-my $exlockfile;
+    my $exlock;
+    my $exlockfile;
+    sub define_global_lockfile {
+        $exlockfile = shift;
+    }
 
-sub define_global_lockfile {
-	$exlockfile=shift;
-}
+    sub set_global_lock ($self, $msg) {
+        die ("Global lock file unknown") if not defined($exlockfile);
+        $msg = '' if not defined($msg);
 
-sub set_global_lock {
+        debug_message("Entering critical section $msg") if defined (debug_message());
 
-	die ("Global lock file unknown") if !defined($exlockfile);
+        # may need to create it if the file got lost
+        my $createstr = (-f $exlockfile) ? '' : '>';
 
-	my $msg = shift;
-	$msg = '' if !defined($msg);
-
-	debug_message("Entering critical section $msg") if defined (&debug_message);
-
-	#may need to create it if the file got lost
-	my $createstr = (-f $exlockfile) ? '' : '>';
-
-	open($exlock, $createstr.$exlockfile);
-	if ( !$exlock || !flock($exlock, LOCK_EX)) {
-		debug_message("unable to achieve a lock on $exlockfile: $!") if defined (&debug_message);
-		die "Unable to achieve lock on $exlockfile: $!";
-	}
-}
+        open($exlock, $createstr.$exlockfile);
+        if ( !$exlock || !flock($exlock, LOCK_EX)) {
+            debug_message("unable to achieve a lock on $exlockfile: $!") if defined (debug_message());
+            die "Unable to achieve lock on $exlockfile: $!";
+        }
+    }
 
     sub release_global_lock {
         debug_message("Exiting critical section") if defined (&debug_message);
