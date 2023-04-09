@@ -228,7 +228,7 @@ EOM
         $terminating=1;
 
         # close all connections or shutdown the server if parent and kill
-        debug_message('received SIGTERM, terminating');
+        $pkg_cacher->debug_message($cfg, 'received SIGTERM, terminating: LINE: '. __LINE__);
         $con->close if defined($con);
 
         if ($server_pid && $server_pid == $$) {
@@ -236,7 +236,7 @@ EOM
         }
 
         for my $children (@childPids) {
-            debug_message("killing subprocess: $children");
+            $pkg_cacher->debug_message($cfg, "killing subprocess: $children: LINE: ". __LINE__);
             kill 15, $children;
         };
         exit 0;
