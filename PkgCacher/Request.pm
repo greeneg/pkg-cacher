@@ -941,8 +941,9 @@ EOF
     # IP address filtering.
     sub ipv4_addr_in_list :prototype($$) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        $pkg_cacher->debug_message($cfg, "$_[0]: LINE: ". __LINE__);
         return 0 if $_[0] eq '';
-        debug_message ("testing $_[1]");
+        $pkg_cacher->debug_message($cfg, "testing $_[1]: LINE: ". __LINE__);
         return 0 unless $cfg->{$_[1]};
 
         my ($client, $cfitem) = @_;
