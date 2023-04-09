@@ -508,7 +508,7 @@ package PkgCacher::Request {
                 }
             }
 
-            set_global_lock(': file download decision'); # file state decisions, lock that area
+            $pkg_cacher->set_global_lock(': file download decision'); # file state decisions, lock that area
 
             my $fromfile; # handle for return_file()
 
