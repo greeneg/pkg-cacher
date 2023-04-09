@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # pkg-cacher-cleanup.pl
 # Script to clean the cache for the Pkg-cacher package caching system.

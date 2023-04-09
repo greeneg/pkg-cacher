@@ -232,26 +232,26 @@ package PkgCacher {
 
     my $exlock;
 
-    sub set_global_lock ($self, $msg, $exlockfile) {
+    sub set_global_lock ($self, $msg, $exlockfile = undef) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         die ("Global lock file unknown") if not defined($exlockfile);
         $msg = '' if not defined($msg);
 
-        debug_message("Entering critical section $msg") if defined (debug_message());
+        $self->debug_message($cfg, "Entering critical section $msg: LINE: ". __LINE__);
 
         # may need to create it if the file got lost
         my $createstr = (-f $exlockfile) ? '' : '>';
 
         open($exlock, $createstr.$exlockfile);
-        if ( !$exlock || !flock($exlock, LOCK_EX)) {
-            debug_message("unable to achieve a lock on $exlockfile: $!") if defined (debug_message());
+        if ( !$exlock || not flock($exlock, LOCK_EX)) {
+            $self->debug_message($cfg, "unable to achieve a lock on $exlockfile: $!: LINE: ". __LINE__);
             die "Unable to achieve lock on $exlockfile: $!";
         }
     }
 
-    sub release_global_lock {
+    our sub release_global_lock ($self) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        debug_message("Exiting critical section") if defined (&debug_message);
+        $self->debug_message($cfg, "Exiting critical section: LINE: ". __LINE__);
         flock($exlock, LOCK_UN);
     }
 

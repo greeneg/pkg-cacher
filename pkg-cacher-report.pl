@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 # pkg-cacher-report.pl
 # Script to generate usage reports for the Pkg-cacher package caching system.
@@ -7,6 +7,7 @@
 # Distributed under the terms of the GNU Public Licence (GPL).
 
 #use strict;
+use warnings;
 #############################################################################
 ### configuration ###########################################################
 # Include the library for the config file parser

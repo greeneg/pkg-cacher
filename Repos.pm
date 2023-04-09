@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#!/usr/bin/env perl
 # vim: ts=4 sw=4 ai si
 #
 # Copyright (C) 2008-2013 Robert Nelson <robertn@the-nelsons.org>
