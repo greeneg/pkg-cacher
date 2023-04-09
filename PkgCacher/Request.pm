@@ -286,14 +286,14 @@ package PkgCacher::Request {
             $request_data{'ifmosince'} = undef;
 	
             if ($mode eq 'cgi') {
-                $reqstpath = &cgi_get_request(\%request_data);
+                $reqstpath = cgi_get_request(\%request_data);
                 $concloseflag = 1;
             } else {
                 $reqstpath = $self->sa_get_request(\%request_data, $cfg);
             }
 
             # RFC2612 requires bailout for HTTP/1.1 if no Host
-            if (not $request_data{'hostreq'} && $request_data{'httpver'} >= '1.1') {
+            if (not $request_data{'hostreq'} and $request_data{'httpver'} >= '1.1') {
                 $self->sendrsp($cfg, 400, 'Host Header missing');
                 exit 4;
             }
@@ -312,7 +312,7 @@ package PkgCacher::Request {
                            PeerPort=> 80,                   # Default, overridden if
                            Proto   => 'tcp');               # port also in PeerAddr
                 # proxy may be required to reach host
-                if (not defined($sock) && not $cfg->{'use_proxy'}) {
+                if (not defined($sock) and not $cfg->{'use_proxy'}) {
                     $pkg_cacher->info_message("Unable to connect to $1");
                     sendrsp(404, "Unable to connect to $1");
                     exit 4;
@@ -320,8 +320,8 @@ package PkgCacher::Request {
                 # Both host and port need to be matched.  In inetd mode daemon_port
                 # is read from inetd.conf by get_inetd_port(). CGI mode shouldn't
                 # get absolute URLs.
-                if (defined($sock) &&
-                    $sock->sockhost =~ $sock->peerhost &&
+                if (defined($sock) and
+                    $sock->sockhost =~ $sock->peerhost and
                     $sock->peerport == $cfg->{daemon_port}) { # Host is this host
                         $pkg_cacher->debug_message($cfg, 'Host in Absolute URI is this server');
                     $reqstpath =~ s|^http://[^/]+||; # Remove prefix and hostname
@@ -330,7 +330,7 @@ package PkgCacher::Request {
                     sendrsp(403, 'Proxy requests are not allowed');
                     exit 4;
                 }
-                defined($sock) && $sock->shutdown(2); # Close
+                defined($sock) and $sock->shutdown(2); # Close
             }
             $pkg_cacher->debug_message($cfg, "Resolved request is $reqstpath: LINE: ". __LINE__);
 
@@ -405,17 +405,17 @@ package PkgCacher::Request {
 
             $pkg_cacher->debug_message($cfg, "looking for $cached_file");
 
-            if (&is_index_file($filename)) {
+            if (is_index_file($filename)) {
                 $pkg_cacher->debug_message($cfg, "known as index file: $filename");
                 # in offline mode, if not already forced deliver it as-is, otherwise check freshness
-                if ($request_data{'cache_status'} ne 'EXPIRED' &&
-                    -f $cached_file &&
-                    -f $cached_head &&
+                if ($request_data{'cache_status'} ne 'EXPIRED' and
+                    -f $cached_file and
+                    -f $cached_head and
                     !$cfg->{'offline_mode'}) {
                     if ($cfg->{'expire_hours'} > 0) {
                         my $now = time();
                         my @stat = stat($cached_file);
-                        if (@stat && int(($now - $stat[9])/3600) > $cfg->{'expire_hours'}) {
+                        if (@stat and int(($now - $stat[9])/3600) > $cfg->{'expire_hours'}) {
                             $pkg_cacher->debug_message($cfg, "unlinking $filename because it is too old");
                             # Set the status to EXPIRED so the log file can show it
                             # was downloaded again
@@ -425,11 +425,11 @@ package PkgCacher::Request {
                     } else {
                         # use HTTP timestamping/ETag
                         my ($oldmod,$newmod,$oldtag,$newtag,$testfile);
-                        my $response = ${&libcurl($host, $uri, undef)}; # HEAD only
+                        my $response = ${libcurl($host, $uri, undef)}; # HEAD only
                         if ($response->is_success) {
                             $newmod = $response->header('Last-Modified');
                             $newtag = $response->header('ETag');
-                            if (($newmod||$newtag) && open($testfile, $cached_head)) {
+                            if (($newmod||$newtag) and open($testfile, $cached_head)) {
                                 for ($newmod,$newtag) {
                                     s/[\n\r]//g;
                                 }
@@ -440,12 +440,12 @@ package PkgCacher::Request {
                                     } elsif (/^.*ETag:\s*(.*)(?:\r|\n)/) {
                                         $oldtag = $1;
                                     }
-                                    last if $oldtag && $oldmod;
+                                    last if $oldtag and $oldmod;
                                 }
                                 close($testfile);
                             }
                             # Don't use ETag by default for now: broken on some servers
-                            if ($cfg->{'use_etags'} && $oldtag && $newtag) { # Try ETag first
+                            if ($cfg->{'use_etags'} and $oldtag and $newtag) { # Try ETag first
                                 if ($oldtag eq $newtag) {
                                     $pkg_cacher->debug_message($cfg,
                                         "ETag headers match, $oldtag <-> $newtag. Cached file unchanged");
@@ -456,7 +456,7 @@ package PkgCacher::Request {
                                     $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                                 }
                             } else {
-                                if ($oldmod && (str2time($oldmod) >= str2time($newmod)) ) {
+                                if ($oldmod and (str2time($oldmod) >= str2time($newmod)) ) {
                                     # that's ok
                                     $pkg_cacher->debug_message($cfg,
                                         "cached file is up to date or more recent, $oldmod <-> $newmod");
@@ -484,7 +484,7 @@ package PkgCacher::Request {
 
             # handle if-modified-since in a better way (check the equality of
             # the time stamps). Do only if download not forced above.
-            if ($request_data{'ifmosince'} && $request_data{'cache_status'} ne 'EXPIRED') {
+            if ($request_data{'ifmosince'} and $request_data{'cache_status'} ne 'EXPIRED') {
                 $request_data{'ifmosince'} =~ s/\n|\r//g;
 
                 my $oldhead;
@@ -498,20 +498,20 @@ package PkgCacher::Request {
                     close($testfile);
                 }
 
-                if ($oldhead && str2time($request_data{'ifmosince'}) >= str2time($oldhead)) {
+                if ($oldhead and str2time($request_data{'ifmosince'}) >= str2time($oldhead)) {
                     $self->sendrsp(304, 'Not Modified');
                     $pkg_cacher->debug_message($cfg, "File not changed: $request_data{'ifmosince'}");
                     next REQUEST;
                 }
             }
 
-            &set_global_lock(': file download decision'); # file state decisions, lock that area
+            set_global_lock(': file download decision'); # file state decisions, lock that area
 
             my $fromfile; # handle for return_file()
 
             # download or not decision. Also releases the global lock
             dl_check:
-            if (not $force_download && -e $cached_head && -e $cached_file && not $request_data{'cache_status'}) {
+            if (not $force_download and -e $cached_head and -e $cached_file and not $request_data{'cache_status'}) {
                 if (not sysopen($fromfile, $cached_file, O_RDONLY)) {
                     release_global_lock();
                     barf("Unable to open $cached_file: $!.");
@@ -558,12 +558,12 @@ package PkgCacher::Request {
                     $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                 }
 
-                &fetch_store ($host, $uri);	# releases the global lock
+                fetch_store ($host, $uri);	# releases the global lock
                                             # after locking the target
                                             # file
             }
             $pkg_cacher->debug_message($cfg, 'checks done, can return now');
-            my $ret = &return_file ($request_data{'send_head_only'} ? undef : \$fromfile, $request_data{'rangereq'});
+            my $ret = return_file ($request_data{'send_head_only'} ? undef : \$fromfile, $request_data{'rangereq'});
             if ($ret==2) { # retry code
                 $pkg_cacher->debug_message($cfg, 'return_file requested retry');
                 goto dl_check;
@@ -593,7 +593,7 @@ package PkgCacher::Request {
                     $start = $end = $single;
                 }
 
-                if ($start && $end && $start > $end) {
+                if ($start and $end and $start > $end) {
                     @result = [ 0, undef ];
                     last HANDLE_RANGE;
                 }
@@ -641,17 +641,17 @@ package PkgCacher::Request {
         while () {
             if (time() > $abort_time) {
                 info_message("return_file $cached_file aborted waiting for header");
-                &sendrsp(504, 'Request Timeout') if !$header_printed;
+                sendrsp(504, 'Request Timeout') if !$header_printed;
                 exit 4;
             }
 
             if (-s $cached_head) {
                 # header file seen, protect the reading
-                &set_global_lock(': reading the header file');
+                set_global_lock(': reading the header file');
                 if (! -f $cached_head) {
                     # file removed while waiting for lock - download failure?!
                     # start over, maybe spawning an own fetcher
-                    &release_global_lock;
+                    release_global_lock;
                     return 2; # retry
                 }
 
@@ -669,7 +669,7 @@ package PkgCacher::Request {
                         }
                     }
                     close($in);
-                    &release_global_lock;
+                    release_global_lock;
                     sleep 2;
                     next WAIT_FOR_HEADER;
                 }
@@ -687,7 +687,7 @@ package PkgCacher::Request {
                 }
 
                 close($in);
-                &release_global_lock;
+                release_global_lock;
 
                 last WAIT_FOR_HEADER;
             }
@@ -702,14 +702,14 @@ package PkgCacher::Request {
         if (!defined($code)) {
             info_message("Faulty header file detected: $cached_head, first line was: $status_header");
             unlink $cached_head;
-            &sendrsp(500, 'Internal Server Error');
+            sendrsp(500, 'Internal Server Error');
             exit 3;
         }
 
         # in CGI mode, use alternative status line. Don't print one
         # for normal data output (apache does not like that) but on
         # abnormal codes, and then exit immediately
-        if ($mode eq 'cgi' && $code != 200) {
+        if ($mode eq 'cgi' and $code != 200) {
             # don't print the head line but a Status on errors instead
             print $con "Status: $code $msg\n\n";
             exit 1;
@@ -797,7 +797,7 @@ package PkgCacher::Request {
             while (true) {
                 if (time() > $abort_time) {
                     info_message("return_file $cached_file aborted by timeout at $range_start of $total_length bytes");
-                    &sendrsp(504, 'Request Timeout') if !$header_printed;
+                    sendrsp(504, 'Request Timeout') if !$header_printed;
                     exit 4;
                 }
 
@@ -889,7 +889,7 @@ package PkgCacher::Request {
     sub usage_report {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $usage_file = "$cfg->{logdir}/report.html";
-        &sendrsp(200, 'OK', 'Content-Type', 'text/html', 'Expires', 0);
+        sendrsp(200, 'OK', 'Content-Type', 'text/html', 'Expires', 0);
         if (! -f $usage_file) {
             print $con <<EOF;
 <html>
@@ -970,12 +970,12 @@ EOF
                 debug_message("checking against $start to $end");
                 defined ($start = ipv4_normalise($start)) or goto unknown;
                 defined ($end = ipv4_normalise($end)) or goto unknown;
-                return 1 if $client ge $start && $client le $end;
+                return 1 if $client ge $start and $client le $end;
             } else {
                 # unknown
                 unknown:
                 debug_message("Alert: $cfitem ($ahp) is bad");
-                &sendrsp(500, 'Configuration error');
+                sendrsp(500, 'Configuration error');
                 exit 4;
             }
         }
@@ -1016,12 +1016,12 @@ EOF
                 $start = ipv6_normalise($start);
                 $end = ipv6_normalise($end);
                 goto unknown if $start eq '' || $end eq '';
-                return 1 if $client ge $start && $client le $end;
+                return 1 if $client ge $start and $client le $end;
             } else {
                 # unknown
                 unknown:
                 debug_message("Alert: $cfitem ($ahp) is bad");
-                &sendrsp(500, 'Configuration error');
+                sendrsp(500, 'Configuration error');
                 exit 4;
             }
         }
@@ -1032,7 +1032,7 @@ EOF
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
 
         my $initmsg;
-        if (defined $mode && $mode eq 'cgi') {
+        if (defined $mode and $mode eq 'cgi') {
             $initmsg = "Status: $code $msg\r\n";
         } else {
             $initmsg = "HTTP/1.1 $code $msg\r\n";
@@ -1097,7 +1097,7 @@ EOF
         my $xinetdconfdir = '/etc/xinetd.d';
         my $port;
 
-        if (-f $inetdconf && -f '/var/run/inetd.pid') {
+        if (-f $inetdconf and -f '/var/run/inetd.pid') {
             open(FILE, $inetdconf) || do {
                 info_message("Warning: Cannot open $inetdconf, $!");
                 return;
@@ -1111,7 +1111,7 @@ EOF
             }
             close (FILE);
             info_message("Warning: no pkg-cacher port found in $inetdconf") if !$port;
-        } elsif ( -f '/var/run/xinetd.pid' && -f $xinetdconfdir || -f $xinetdconf ) {
+        } elsif ( -f '/var/run/xinetd.pid' and -f $xinetdconfdir || -f $xinetdconf ) {
             my $ident;
             my $found;
             FILE:
