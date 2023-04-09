@@ -43,18 +43,25 @@ package main {
 
     # Include the library for the config file parser
     use PkgCacher;
+    use PkgCacher::Config;
+    use PkgCacher::FileIO;
     use PkgCacher::Request;
 
     # Set some defaults
     our $version="x";
 
-    my $pkg_cacher = PkgCacher->new();
+    my $pkg_cacher;
+    my $pkg_cacher_config = PkgCacher::Config->new();
+    my $pc_fio = PkgCacher::FileIO->new();
+    my $pkg_request;
 
     my $configfile_default = '/etc/pkg-cacher/pkg-cacher.conf';
 
     our $configfile = $configfile_default;
 
     my $mode='sa'; # cgi|inetd|sa
+
+    my $exlockfile = undef;
 
     # Needs to be global for &setup_ownership
     our $cfg;
@@ -89,23 +96,29 @@ package main {
             } else {
                 local @ARGV = @ARGV; # Use a copy so @ARGV not destroyed
                 while (scalar (@ARGV)) {
-                    my $arg=shift(@ARGV);
+                    my $arg = shift(@ARGV);
+
+                    if (-f '/etc/pkg-cacher/pkg-cacher.conf') {
+                        $configfile = '/etc/pkg-cacher/pkg-cacher.conf';
+                    } elsif (-f "$FindBin::RealBin/../../etc/pkg-cacher/pkg-cacher.conf") {
+                        $configfile = "$FindBin::RealBin/../../etc/pkg-cacher/pkg-cacher.conf";
+                    }
 
                     if ($arg eq '-c') {
-                        $configfile=shift(@ARGV);
-                        die "$configfile unreadable" if ! -r $configfile;
+                        $configfile = shift(@ARGV);
+                        die "$configfile unreadable" if not -r $configfile;
                     } elsif ($arg eq '-r') {
-                        $chroot=shift(@ARGV);
-                        die "No such directory: $chroot\n" if ! -d $chroot;
+                        $chroot = shift(@ARGV);
+                        die "No such directory: $chroot\n" if not -d $chroot;
                     } elsif ($arg eq '-R') {
-                        $retnum=shift(@ARGV);
+                        $retnum = shift(@ARGV);
                     } elsif ($arg eq '-i') {
                         $mode = 'inetd';
                     } elsif ($arg eq '-d') {
-                        $do_fork_away=1;
+                        $do_fork_away = 1;
                     } elsif ($arg eq '-p') {
-                        $pidfile=shift(@ARGV);
-                    } elsif ($arg=~/(\S+)=(\S+)/) {
+                        $pidfile = shift(@ARGV);
+                    } elsif ($arg =~ /(\S+)=(\S+)/) {
                         push(@extraconfig, $1, $2);
                     } elsif ($arg eq '-h' || $arg eq '--help') {
                         print <<EOM;
@@ -136,14 +149,15 @@ EOM
         }
 
         eval {
-            $newcfg = $pkg_cacher->read_config($configfile);
+            say STDERR "debug: config file: $configfile" if $ENV{'DEBUG'};
+            $newcfg = $pkg_cacher_config->read_config($configfile);
         };
 
         # not sure what to do if we can't read the config file...
         die "Could not read config file: $@" if $@;
 
         if (not $redo) {
-            $pkg_cacher->define_global_lockfile("$newcfg->{cache_dir}/exlock");
+            $exlockfile = $pc_fio->define_global_lockfile("$newcfg->{cache_dir}/exlock");
 
             # Now set some things from the command line
             $newcfg->{'pidfile'} = $pidfile if $pidfile;
@@ -175,6 +189,7 @@ EOM
 
             $cfg = $newcfg;
 
+            $pkg_cacher  = PkgCacher->new($cfg);
             # Ensure config is sane and filesystem is present and readable
             $pkg_cacher->check_install($cfg);
 
@@ -196,12 +211,14 @@ EOM
         }
 
         if ($cfg->{'path_map'}) {
-            for (split(/\s*[,;]\s*/, $cfg->{'path_map'})) {
-                my @tmp = split(/\s+/, $_);
+            say STDERR "path_map: $cfg->{'path_map'}" if $ENV{'DEBUG'};
+            foreach my $path_entry (split(/\s*[,;]\s*/, $cfg->{'path_map'})) {
+                say STDERR "info: path_entry: $path_entry" if $ENV{'DEBUG'};
+                my @tmp = split(/\s+/, $path_entry);
                 # must have at least one path and target
                 next if ($#tmp < 1);
-                my $key=shift(@tmp);
-                $pathmap{$key}=[@tmp];
+                my $key = shift(@tmp);
+                $pathmap{$key} = [@tmp];
             }
         }
     }
@@ -258,9 +275,10 @@ EOM
         # Test if IPv6 is available and use if it is
         if (eval{require IO::Socket::INET6}) {
             import IO::Socket::INET6;
-            $pkg_cacher->debug_message($cfg, 'Using IPv6');
+            $pkg_cacher->debug_message($cfg, 'Using IPv6: LINE: '. __LINE__);
             return  IO::Socket::INET6->new(@args);
         } else {
+            $pkg_cacher->debug_message($cfg, 'Using IPv4: LINE: '. __LINE__);
             return IO::Socket::INET->new(@args);
         }
     }
@@ -274,6 +292,8 @@ EOM
 
         # Output data as soon as we print it
         $| = 1;
+
+        $pkg_request = PkgCacher::Request->new($cfg, \%pathmap);
 
         #Signal Handlers
         say STDERR "Info: Setting UNIX signal handlers" if $ENV{'DEBUG'};
@@ -290,9 +310,9 @@ EOM
 
         if ($mode ne 'sa') {
             open (STDERR, '>/dev/null') || die $!;
-            setup_ownership();
-            open_log_files();
-            handle_connection($mode);
+            $pkg_cacher->setup_ownership();
+            $pkg_cacher->open_log_files();
+            $pkg_request->handle_connection($mode);
             exit 0;
         }
 
@@ -314,12 +334,12 @@ EOM
 
             my $retnum = $cfg->{'retry'};
             while (true) {
-                say STDERR "Info: Attempting to bind to address $daemon_addr";
+                say STDERR "Info: Attempting to bind to address $daemon_addr" if $ENV{'DEBUG'};
                 $daemon = io_socket_inet46(%daemonopts);
                 last if $daemon;
                 $retnum--;
                 last if ($retnum <= 0);
-                say STDERR "Unable to bind socket ($daemon_addr port $cfg->{daemon_port}), trying again in 5 seconds";
+                say STDERR "Unable to bind socket ($daemon_addr port $cfg->{daemon_port}), trying again in 5 seconds"  if $ENV{'DEBUG'};
                 sleep 5;
             }
             if (not $daemon) {
@@ -328,7 +348,7 @@ EOM
                 ) . "port $cfg->{'daemon_port'} ), " . basename($0) . " not started";
                 exit 1;
             } else {
-                say "Bound to $daemon_addr at $cfg->{'daemon_port'}";
+                say "Bound to $daemon_addr at $cfg->{'daemon_port'}" if $ENV{'DEBUG'};
                 push @daemons, $daemon;
             }
 
@@ -336,11 +356,11 @@ EOM
             if (not $daemon_addr || $cfg->{'daemon_addr'} =~ /$daemon_addr[\s,;]*$/) {
                 # last, empty or only address
                 $last = 1;
-                say STDERR "Info: Forking: $cfg->{'fork'}";
+                say STDERR "Info: Forking: $cfg->{'fork'}" if $ENV{'DEBUG'};
                 goto NO_FORK unless $cfg->{'fork'};
             }
             if ($cfg->{'fork'}) {
-                $pkg_cacher->debug_message($cfg, 'fork listener ' . (defined($daemon_addr) ? $daemon_addr : '') . "\n");
+                $pkg_cacher->debug_message($cfg, 'fork listener ' . (defined($daemon_addr) ? $daemon_addr : '') . ": LINE: ". __LINE__);
                 my $pid = fork(); # for each daemon_addr
                 if ($pid < 0) {
                     barf('fork() failed');
@@ -360,7 +380,7 @@ EOM
                     open (STDERR, '>/dev/null') || die $!;
                 }
             } else {
-                $pkg_cacher->debug_message($cfg, 'Not forking a listener');
+                $pkg_cacher->debug_message($cfg, 'Not forking a listener: LINE: '. __LINE__);
             }
 
             NO_FORK:
@@ -379,7 +399,7 @@ EOM
             $pkg_cacher->debug_message(
                 $cfg,
                 "Pkg-Cacher version $version started with Debug output enabled, accepting connections on " .
-                  $daemon->sockhost . ':' . $daemon->sockport
+                  $daemon->sockhost . ':' . $daemon->sockport . ': LINE: '. __LINE__
             );
 
             while (true) {
@@ -388,7 +408,7 @@ EOM
                 next if (!$newcon);
                 last if $terminating;
 
-                $pkg_cacher->debug_message($cfg, 'Connection from '.$newcon->peerhost);
+                $pkg_cacher->debug_message($cfg, 'Connection from '.$newcon->peerhost.': LINE: '. __LINE__);
 
                 my $pid = fork();
                 if ($pid < 0) {
@@ -397,14 +417,14 @@ EOM
 
                 if ($pid > 0) {
                     # parent
-                    $pkg_cacher->debug_message($cfg, "registered child process: $pid");
+                    $pkg_cacher->debug_message($cfg, "registered child process: $pid: LINE: ". __LINE__);
                     push @childPids, $pid;
                     next;
                 }
                 # child
                 undef @childPids;
 
-                handle_connection($mode, $newcon);
+                $pkg_request->handle_connection($mode, $newcon, $cfg);
                 exit 0;
             }
         }

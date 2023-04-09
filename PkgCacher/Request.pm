@@ -17,8 +17,9 @@
 # ----------------------------------------------------------------------------
 
 package PkgCacher::Request {
-    use strict;
-    use warnings;
+    use strictures;
+    use English;
+    use utf8;
 
     use feature ":5.28";
     use feature 'lexical_subs';
@@ -26,6 +27,7 @@ package PkgCacher::Request {
     no warnings "experimental::signatures";
 
     use boolean;
+    use Data::Dumper;
     use FindBin;
     use lib "$FindBin::RealBin/.";
 
@@ -41,11 +43,10 @@ package PkgCacher::Request {
     use PkgCacher;
     use PkgCacher::Fetch;
 
-    my $pkg_cacher = PkgCacher->new();
-
     # Set some defaults
-    my $static_files_regexp = '(?:' . $pkg_cacher->read_patterns('static_files.regexp') . ')$';
     my $source;
+
+    my $static_files_regexp;
 
     my $mode; # cgi|inetd|sa
     my $concloseflag;
@@ -54,10 +55,6 @@ package PkgCacher::Request {
     my $con;
 
     # Data shared between files
-
-    our $cfg;
-    our %pathmap;
-
     our $cached_file;
     our $cached_head;
     our $complete_file;
@@ -65,22 +62,41 @@ package PkgCacher::Request {
 
     our @cache_control;
 
+    my $cfg;
+    my %pathmap;
+    my $pkg_cacher;
+
     # Subroutines
-    sub sa_get_request ($request_data_ref) {
+    sub new ($class, $_cfg, $pathmap) {
+        say STDERR "Constructing PkgCacher object: ". (caller(0))[3] if $ENV{'DEBUG'};
+        my $self = {};
+
+        $cfg = $_cfg;
+        %pathmap = %{$pathmap};
+
+        $pkg_cacher = PkgCacher->new($cfg);
+        $static_files_regexp = '(?:' . $pkg_cacher->read_patterns('static_files.regexp') . ')$';
+
+        bless($self, $class);
+        return $self;
+    }
+
+    our sub sa_get_request ($self, $request_data_ref, $cfg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $tolerated_empty_lines = 1;
         my $testpath;			# temporary, to be set by GET lines, undef on GO
         my $reqstpath;
 
         # reading input line by line, through the secure input method
         while (true) {
-            debug_message('Processing a new request line');
+            $pkg_cacher->debug_message($cfg, 'Processing a new request line: LINE: '. __LINE__);
 
             my $line = getRequestLine();
             if (not defined($line)) {
                 exit 0;
             }
 
-            debug_message("got: $line");
+            $pkg_cacher->debug_message($cfg, "got: $line: LINE: ". __LINE__);
 
             if ($line =~ /^$/) {
                 if (defined($testpath)) {
@@ -88,7 +104,7 @@ package PkgCacher::Request {
                     $reqstpath = $testpath;
                     last;
                 } elsif (not $tolerated_empty_lines) {
-                    sendrsp(403, 'Go away');
+                    sendrsp($cfg, 403, 'Go away');
                     exit 4;
                 } else {
                     $tolerated_empty_lines--;
@@ -96,7 +112,7 @@ package PkgCacher::Request {
             } else {
                 if ($line =~ /^(GET|HEAD)\s+(\S+)(?:\s+HTTP\/(\d\.\d))?/) {
                     if (defined($testpath)) {
-                        sendrsp(403, 'Confusing request');
+                        $self->sendrsp($cfg, 403, 'Confusing request');
                         exit 4;
                     }
                     $testpath = $2;
@@ -108,11 +124,11 @@ package PkgCacher::Request {
                 } elsif ($line =~ /^Host:\s+(\S+)/) {
                     $request_data_ref->{'hostreq'} = $1;
                 } elsif ($line =~ /^((?:Pragma|Cache-Control):\s*\S+)/) {
-                    debug_message("Request specified $1");
+                    $pkg_cacher->debug_message($cfg, "Request specified $1: LINE: ". __LINE__);
                     push @cache_control, $1;
                     if ($1 =~ /no-cache/) {
                         $request_data_ref->{'cache_status'} = 'EXPIRED';
-                        debug_message("Download forced");
+                        $pkg_cacher->debug_message($cfg, "Download forced: LINE: ". __LINE__);
                     }
                 } elsif ($line =~ /^Connection: close/i) {
                     $concloseflag = 1;
@@ -127,8 +143,8 @@ package PkgCacher::Request {
                 } elsif ($line =~ /^\S+: [^:]*/) {
                     # whatever, but valid
                 } else {
-                    info_message("Failed to parse input: $line");
-                    sendrsp(403, "Could not understand $line");
+                    $pkg_cacher->info_message("Failed to parse input: $line");
+                    $self->sendrsp($cfg, 403, "Could not understand $line");
                     exit 4;
                 }
             }
@@ -138,6 +154,7 @@ package PkgCacher::Request {
     }
 
     sub cgi_get_request ($request_data_ref) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         ( $request_data_ref->{'httpver'} ) = $ENV{'SERVER_PROTOCOL'} =~ /^HTTP\/(\d+\.\d+)$/;
         $request_data_ref->{'send_head_only'} = $ENV{'REQUEST_METHOD'} eq 'HEAD';
         $request_data_ref->{'hostreq'} = $ENV{'SERVER_NAME'};
@@ -167,17 +184,27 @@ package PkgCacher::Request {
         return $cgi_path;
     }
 
-    sub usage_error ($client) {
+    our sub usage_error ($self, $client, $cfg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        $self->sendrsp($cfg, 400, 'Invalid URL');
+        exit 6;
     }
 
-    sub handle_connection ($mode, $_con) {
+    our sub bad_url ($self, $client, $cfg) {
+        $pkg_cacher->debug_message($cfg, "Alert: client $client disallowed by access control: LINE: ". __LINE__);
+        $self->sendrsp($cfg, 403, 'Access to cache prohibited');
+        exit 4;
+    }
+
+    our sub handle_connection ($self, $mode, $_con, $cfg) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         # now begin connection's personal stuff
         my $client;
         my $filename;
 
         $SIG{'CHLD'} = 'IGNORE';
 
-        debug_message('New '. ($mode ne 'sa' ? "\U$mode" : 'Daemon') .' connection');
+        $pkg_cacher->debug_message($cfg, 'New '. ($mode ne 'sa' ? "\U$mode" : 'Daemon') .' connection: LINE: '. __LINE__);
 
         if ($mode ne 'sa') { # Not standalone daemon
             $source = *STDIN;
@@ -210,40 +237,37 @@ package PkgCacher::Request {
             # otherwise host must be in allowed list and not in denied list to be accepted
 
             if ($client =~ /:/) { # IPv6?
-                defined ($clientaddr = ipv6_normalise ($client)) or goto badaddr;
+                defined ($clientaddr = $pkg_cacher->ipv6_normalise($client)) or $self->bad_url($client, $cfg);
                 if (substr ($clientaddr, 0, 12) eq "\0\0\0\0\0\0\0\0\0\0\xFF\xFF") {
                     $clientaddr = substr ($clientaddr, 12);
                     goto is_ipv4;
                 } elsif ($clientaddr eq "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1") {
-                    debug_message('client is localhost');
+                    $pkg_cacher->debug_message($cfg, 'client is localhost: LINE: '. __LINE__);
                 } else {
-                    $ip_pass = ($cfg->{allowed_hosts_6} =~ /^\*?$/) ||
-                      ipv6_addr_in_list ($clientaddr, 'allowed_hosts_6');
-                    $ip_fail = ipv6_addr_in_list ($clientaddr, 'denied_hosts_6');
+                    $ip_pass = ($cfg->{'allowed_hosts_6'} =~ /^\*?$/) ||
+                      ipv6_addr_in_list($clientaddr, 'allowed_hosts_6');
+                    $ip_fail = ipv6_addr_in_list($clientaddr, 'denied_hosts_6');
                 }
-            } elsif (defined ($clientaddr = ipv4_normalise ($client))) { # IPv4?
+            } elsif (defined ($clientaddr = $pkg_cacher->ipv4_normalise($client))) { # IPv4?
                 is_ipv4:
                 if ($clientaddr eq "\x7F\0\0\1") {
-                    debug_message('client is localhost');
+                    $pkg_cacher->debug_message($cfg, 'client is localhost: LINE: '. __LINE__);
                 } else {
-                    $ip_pass = ($cfg->{allowed_hosts} =~ /^\*?$/) ||
-                      ipv4_addr_in_list ($clientaddr, 'allowed_hosts');
-                    $ip_fail = ipv4_addr_in_list ($clientaddr, 'denied_hosts');
+                    $ip_pass = ($cfg->{'allowed_hosts'} =~ /^\*?$/) ||
+                      ipv4_addr_in_list($clientaddr, 'allowed_hosts');
+                    $ip_fail = ipv4_addr_in_list($clientaddr, 'denied_hosts');
                 }
             } else {
-                goto badaddr;
+                $self->bad_url($client, $cfg);
             }
 
             # Now check if the client address falls within this range
-            if ($ip_pass && !$ip_fail) {
+            if ($ip_pass and not $ip_fail) {
                 # Everything's cool, client is in allowed range
-                debug_message("Client $client passed access control rules");
+                $pkg_cacher->debug_message($cfg, "Client $client passed access control rules: LINE: ". __LINE__);
             } else {
                 # Bzzzt, client is outside allowed range. Send a 403 and bail.
-                badaddr:
-                debug_message("Alert: client $client disallowed by access control");
-                sendrsp(403, 'Access to cache prohibited');
-                exit 4;
+                $self->bad_url($client, $cfg);
             }
         }
 
@@ -265,12 +289,12 @@ package PkgCacher::Request {
                 $reqstpath = &cgi_get_request(\%request_data);
                 $concloseflag = 1;
             } else {
-                $reqstpath = &sa_get_request(\%request_data);
+                $reqstpath = $self->sa_get_request(\%request_data, $cfg);
             }
 
             # RFC2612 requires bailout for HTTP/1.1 if no Host
             if (not $request_data{'hostreq'} && $request_data{'httpver'} >= '1.1') {
-                sendrsp(400, 'Host Header missing');
+                $self->sendrsp($cfg, 400, 'Host Header missing');
                 exit 4;
             }
 
@@ -283,13 +307,13 @@ package PkgCacher::Request {
 
             if ($reqstpath =~ m!^http://([^/]+)!) { # Absolute URI
                 # Check host or proxy
-                debug_message("Checking host $1 in absolute URI");
+                $pkg_cacher->debug_message($cfg, "Checking host $1 in absolute URI");
                 my $sock = io_socket_inet46(PeerAddr=> $1,  # possibly with port
                            PeerPort=> 80,                   # Default, overridden if
                            Proto   => 'tcp');               # port also in PeerAddr
                 # proxy may be required to reach host
-                if (!defined($sock) && !$cfg->{use_proxy}) {
-                    info_message("Unable to connect to $1");
+                if (not defined($sock) && not $cfg->{'use_proxy'}) {
+                    $pkg_cacher->info_message("Unable to connect to $1");
                     sendrsp(404, "Unable to connect to $1");
                     exit 4;
                 }
@@ -299,57 +323,63 @@ package PkgCacher::Request {
                 if (defined($sock) &&
                     $sock->sockhost =~ $sock->peerhost &&
                     $sock->peerport == $cfg->{daemon_port}) { # Host is this host
-                        debug_message('Host in Absolute URI is this server');
+                        $pkg_cacher->debug_message($cfg, 'Host in Absolute URI is this server');
                     $reqstpath =~ s|^http://[^/]+||; # Remove prefix and hostname
                 } else { # Proxy request
-                    info_message('Host in Absolute URI is not this server - proxy unsupported');
+                    $pkg_cacher->info_message('Host in Absolute URI is not this server - proxy unsupported');
                     sendrsp(403, 'Proxy requests are not allowed');
                     exit 4;
                 }
                 defined($sock) && $sock->shutdown(2); # Close
             }
-            debug_message("Resolved request is $reqstpath");
+            $pkg_cacher->debug_message($cfg, "Resolved request is $reqstpath: LINE: ". __LINE__);
 
             # Now parse the path
+            $pkg_cacher->debug_message($cfg, "Parsing reqstpath");
             if ($reqstpath =~ m|^\/?report|) {
-                usage_report();
+                $pkg_cacher->debug_message($cfg, "Getting Usage Report");
+                $self->usage_report();
                 exit 0;
             }
 
+            say STDERR "Info: Checking reqstpath for leading query string" if $ENV{'DEBUG'};
             if ($reqstpath !~ m|^/?.+/.+|) {
-                usage_error($client);
+                say STDERR "Error: Query strings not allowed";
+                $self->usage_error($client, $cfg);
             }
 
             my ($host, $uri) = ($reqstpath =~ m|^/?([^/]+)(/.+)|);
-
-            if (not $host || not $uri ) {
-                usage_error($client);
+            if (not defined $host || not defined $uri ) {
+                $self->usage_error($client, $cfg);
             }
 
-            say STDERR "Host $pathmap{$host}";
             if (not exists $pathmap{$host}) { # error
-                info_message("Undefined virtual host $1");
-                sendrsp(404, "Undefined virtual host $1");
+                $pkg_cacher->info_message("Undefined virtual host $1");
+                $self->sendrsp($cfg, 404, "Undefined virtual host $1");
                 exit 4;
             }
 
             $uri =~ s#/{2,}#/#g; # Remove multiple separators
             ($filename) = ($uri =~ /\/?([^\/]+)$/);
 
-            if ($filename =~ /$static_files_regexp/) {
+            if (defined $filename and $filename =~ /$static_files_regexp/) {
                 # We must be fetching a .deb or a .rpm or some other recognised
                 # file, so let's cache it.
                 # Place the file in the cache with just its basename
-                debug_message("base file: $filename");
-            } elsif (&is_index_file($filename)) {
+                $pkg_cacher->debug_message($cfg, "base file: $filename");
+            } elsif ($pkg_cacher->is_index_file($filename)) {
                 # It's a Packages.gz or related file: make a long filename so we can
                 # cache these files without the names colliding
-                debug_message("index file: $filename");
+                $pkg_cacher->debug_message($cfg, "index file: $filename");
             } else {
                 # Maybe someone's trying to use us as a general purpose proxy / relay.
                 # Let's stomp on that now.
-                info_message("Sorry, not allowed to fetch that type of file: $filename");
-                sendrsp(403, "Sorry, not allowed to fetch that type of file: $filename");
+                if (defined $filename) {
+                    $pkg_cacher->info_message("Sorry, not allowed to fetch that type of file: $filename");
+                    $self->sendrsp($cfg, 403, "Sorry, not allowed to fetch that type of file: $filename");
+                } else {
+                    $self->sendrsp($cfg, 403, 'Not a general proxy!');
+                }
                 exit 4;
             }
 
@@ -360,37 +390,37 @@ package PkgCacher::Request {
             foreach my $file ($cached_file, $cached_head, $complete_file) {
                 my ($filepath) = $file =~ /(.*\/)[^\/]+/;
 
-                debug_message("Checking for directory $filepath");
+                $pkg_cacher->debug_message($cfg, "Checking for directory $filepath");
 
-                if (! -d $filepath) {
-                    debug_message("Directory doesn't exist, creating $filepath");
+                if (not -d $filepath) {
+                    $pkg_cacher->debug_message($cfg, "Directory doesn't exist, creating $filepath");
                     eval { mkpath($filepath) };
                     if ($@) {
-                        info_message("Unable to create directory $filepath: $@");
-                        sendrsp(403, "System error: $filename");
+                        $pkg_cacher->info_message("Unable to create directory $filepath: $@");
+                        $self->sendrsp(403, "System error: $filename");
                         exit 4;
                     }
                 }
             }
 
-            debug_message("looking for $cached_file");
+            $pkg_cacher->debug_message($cfg, "looking for $cached_file");
 
             if (&is_index_file($filename)) {
-                debug_message("known as index file: $filename");
+                $pkg_cacher->debug_message($cfg, "known as index file: $filename");
                 # in offline mode, if not already forced deliver it as-is, otherwise check freshness
                 if ($request_data{'cache_status'} ne 'EXPIRED' &&
                     -f $cached_file &&
                     -f $cached_head &&
-                    !$cfg->{offline_mode}) {
-                    if ($cfg->{expire_hours} > 0) {
+                    !$cfg->{'offline_mode'}) {
+                    if ($cfg->{'expire_hours'} > 0) {
                         my $now = time();
                         my @stat = stat($cached_file);
-                        if (@stat && int(($now - $stat[9])/3600) > $cfg->{expire_hours}) {
-                            debug_message("unlinking $filename because it is too old");
+                        if (@stat && int(($now - $stat[9])/3600) > $cfg->{'expire_hours'}) {
+                            $pkg_cacher->debug_message($cfg, "unlinking $filename because it is too old");
                             # Set the status to EXPIRED so the log file can show it
                             # was downloaded again
                             $request_data{'cache_status'} = 'EXPIRED';
-                            debug_message($request_data{'cache_status'});
+                            $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                         }
                     } else {
                         # use HTTP timestamping/ETag
@@ -415,26 +445,30 @@ package PkgCacher::Request {
                                 close($testfile);
                             }
                             # Don't use ETag by default for now: broken on some servers
-                            if ($cfg->{use_etags} && $oldtag && $newtag) { # Try ETag first
+                            if ($cfg->{'use_etags'} && $oldtag && $newtag) { # Try ETag first
                                 if ($oldtag eq $newtag) {
-                                    debug_message("ETag headers match, $oldtag <-> $newtag. Cached file unchanged");
+                                    $pkg_cacher->debug_message($cfg,
+                                        "ETag headers match, $oldtag <-> $newtag. Cached file unchanged");
                                 } else {
-                                    debug_message("ETag headers different, $oldtag <-> $newtag. Refreshing cached file");
+                                    $pkg_cacher->debug_message($cfg,
+                                        "ETag headers different, $oldtag <-> $newtag. Refreshing cached file");
                                     $request_data{'cache_status'} = 'EXPIRED';
-                                    debug_message($request_data{'cache_status'});
+                                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                                 }
                             } else {
                                 if ($oldmod && (str2time($oldmod) >= str2time($newmod)) ) {
                                     # that's ok
-                                    debug_message("cached file is up to date or more recent, $oldmod <-> $newmod");
+                                    $pkg_cacher->debug_message($cfg,
+                                        "cached file is up to date or more recent, $oldmod <-> $newmod");
                                 } else {
-                                    debug_message("downloading $filename because more recent version is available: $oldmod <-> $newmod");
+                                    $pkg_cacher->debug_message($cfg,
+                                        "downloading $filename because more recent version is available: $oldmod <-> $newmod");
                                     $request_data{'cache_status'} = 'EXPIRED';
-                                    debug_message($request_data{'cache_status'});
+                                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                                 }
                             }
                         } else {
-                            info_message('HEAD request error: '.$response->status_line.' Reusing existing file');
+                            $pkg_cacher->info_message('HEAD request error: '.$response->status_line.' Reusing existing file');
                             $request_data{'cache_status'} = 'OFFLINE';
                         }
                     }
@@ -465,8 +499,8 @@ package PkgCacher::Request {
                 }
 
                 if ($oldhead && str2time($request_data{'ifmosince'}) >= str2time($oldhead)) {
-                    sendrsp(304, 'Not Modified');
-                    debug_message("File not changed: $request_data{'ifmosince'}");
+                    $self->sendrsp(304, 'Not Modified');
+                    $pkg_cacher->debug_message($cfg, "File not changed: $request_data{'ifmosince'}");
                     next REQUEST;
                 }
             }
@@ -485,7 +519,7 @@ package PkgCacher::Request {
                 if (-f $complete_file) {
                     # not much to do if complete
                     $request_data{'cache_status'} = 'HIT';
-                    debug_message($request_data{'cache_status'});
+                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                 } else {
                     # a fetcher was either not successful or is still running
                     # look for activity...
@@ -494,11 +528,11 @@ package PkgCacher::Request {
                         # No fetcher working on this package. Redownload it.
                         close $fromfile;
                         undef $fromfile;
-                        debug_message('no fetcher running, downloading');
+                        $pkg_cacher->debug_message($cfg, 'no fetcher running, downloading');
                         $force_download = 1;
                         goto dl_check;
                     } else {
-                        debug_message('Another fetcher already working on file');
+                        $pkg_cacher->debug_message($cfg, 'Another fetcher already working on file');
                     }
                 }
                 release_global_lock();
@@ -506,12 +540,12 @@ package PkgCacher::Request {
                 # bypass for offline mode, no forking, just report the "problem"
                 if ($cfg->{'offline_mode'}) {
                     release_global_lock();
-                    sendrsp(503, 'Service not available: pkg-cacher offline');
+                    $self->sendrsp(503, 'Service not available: pkg-cacher offline');
                     next REQUEST;
                 }
                 # (re) download them
                 unlink($cached_file, $cached_head, $complete_file);
-                debug_message('file does not exist or download required, forking fetcher');
+                $pkg_cacher->debug_message($cfg, 'file does not exist or download required, forking fetcher');
                 # Create the file, it will reopened in fetch_store
                 sysopen(my $pkfd, $cached_file, O_RDWR|O_CREAT|O_EXCL, 0644)
                     || barf("Unable to create new $cached_file: $!");
@@ -521,20 +555,20 @@ package PkgCacher::Request {
                 # Set the status to MISS so the log file can show it had to be downloaded
                 if (!defined($request_data{'cache_status'})) { # except on special presets from index file checks above
                     $request_data{'cache_status'} = 'MISS';
-                    debug_message($request_data{'cache_status'});
+                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
                 }
 
                 &fetch_store ($host, $uri);	# releases the global lock
                                             # after locking the target
                                             # file
             }
-            debug_message('checks done, can return now');
+            $pkg_cacher->debug_message($cfg, 'checks done, can return now');
             my $ret = &return_file ($request_data{'send_head_only'} ? undef : \$fromfile, $request_data{'rangereq'});
             if ($ret==2) { # retry code
-                debug_message('return_file requested retry');
+                $pkg_cacher->debug_message($cfg, 'return_file requested retry');
                 goto dl_check;
             }
-            debug_message('Package sent');
+            $pkg_cacher->debug_message($cfg, 'Package sent');
 
             # Write all the stuff to the log file
             writeaccesslog($request_data{'cache_status'}, $filename, -s $cached_file, $client);
@@ -542,6 +576,7 @@ package PkgCacher::Request {
     }
 
     sub parse_range {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my @result;
         my ($input_ranges) = $_[0] =~ /^bytes=([\d,-]+)$/i;
 
@@ -571,6 +606,8 @@ package PkgCacher::Request {
     }
 
     sub return_file {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+
         # At this point the file is open, and it's either complete or somebody
         # is fetching its contents
 
@@ -757,7 +794,7 @@ package PkgCacher::Request {
             debug_message("range_start = $range_start, range_length = $range_length");
 
             CHUNK:
-            while (1) {
+            while (true) {
                 if (time() > $abort_time) {
                     info_message("return_file $cached_file aborted by timeout at $range_start of $total_length bytes");
                     &sendrsp(504, 'Request Timeout') if !$header_printed;
@@ -844,11 +881,13 @@ package PkgCacher::Request {
     }
 
     sub get_abort_time () {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return time () + $cfg->{fetch_timeout}; # five minutes from now
     }
 
     # Check if there has been a usage report generated and display it
     sub usage_report {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $usage_file = "$cfg->{logdir}/report.html";
         &sendrsp(200, 'OK', 'Content-Type', 'text/html', 'Expires', 0);
         if (! -f $usage_file) {
@@ -901,6 +940,7 @@ EOF
 
     # IP address filtering.
     sub ipv4_addr_in_list :prototype($$) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return 0 if $_[0] eq '';
         debug_message ("testing $_[1]");
         return 0 unless $cfg->{$_[1]};
@@ -987,29 +1027,33 @@ EOF
         return 0; # failed
     }
 
-    sub sendrsp {
-        my $code=shift;
-        my $msg=shift;
-        $msg='' if !defined($msg);
+    our sub sendrsp ($self, $cfg, $code, $msg = '') {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
 
-        my $initmsg = ($mode eq 'cgi') ?
-            "Status: $code $msg\r\n" :
-            "HTTP/1.1 $code $msg\r\n";
+        my $initmsg;
+        if (defined $mode && $mode eq 'cgi') {
+            $initmsg = "Status: $code $msg\r\n";
+        } else {
+            $initmsg = "HTTP/1.1 $code $msg\r\n";
+        }
 
-        $initmsg.="Connection: Keep-Alive\r\nAccept-Ranges: bytes\r\nKeep-Alive: timeout=15, max=100\r\n" if ($code != 403);
+        $initmsg .= "Connection: Keep-Alive\r\nAccept-Ranges: bytes\r\nKeep-Alive: timeout=15, max=100\r\n" if ($code != 403);
 
-        #debug_message("Sending Response: $initmsg");
+        $pkg_cacher->debug_message($cfg, "Sending Response: $initmsg");
         print $con $initmsg;
 
         my $altbit=0;
-        for (@_) {
-            $altbit=!$altbit;
-            if ($altbit) {
-                #debug_message("$_: ");
-                print $con "$_: ";
-            } else {
-                #debug_message("$_\r\n");
-                print $con "$_\r\n";
+        {
+            no warnings 'experimental::args_array_with_signatures';
+            for (@_) {
+                $altbit = not $altbit;
+                if ($altbit) {
+                    #debug_message("$_: ");
+                    print $con "$_: ";
+                } else {
+                    #debug_message("$_\r\n");
+                    print $con "$_\r\n";
+                }
             }
         }
         print $con "\r\n";

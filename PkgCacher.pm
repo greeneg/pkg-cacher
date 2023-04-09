@@ -26,14 +26,18 @@ package PkgCacher {
 
     use File::Basename;
 
+    use Try::Tiny qw(try catch);
+
     our $cfg;
 
     our $erlog_fh = undef;
     our $aclog_fh = undef;
 
-    sub new ($class) {
+    sub new ($class, $_cfg) {
         say STDERR "Constructing PkgCacher object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
+
+        $cfg = $_cfg;
 
         bless($self, $class);
         return $self;
@@ -54,59 +58,6 @@ package PkgCacher {
         }
 
         return join('|', @pattern);
-    }
-
-    our sub read_config ($self, $config_file) {
-        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        # set the default config variables
-        my %config = (
-            cache_dir => '/var/cache/pkg-cacher',
-            logdir => '/var/log/pkg-cacher',
-            admin_email => 'root@localhost',
-            generate_reports => 0,
-            expire_hours => 0,
-            http_proxy => '',
-            https_proxy => '',
-            use_proxy => 0,
-            http_proxy_auth => '',
-            https_proxy_auth => '',
-            use_proxy_auth => 0,
-            require_valid_ssl => 1,
-            debug => 0,
-            clean_cache => 0,
-            allowed_hosts_6 => '*',
-            allowed_hosts => '*',
-            limit => 0,
-            daemon_port => 8080,
-            fetch_timeout => 300 # five minutes from now
-        );
-
-        my $conf_fh;
-        open $conf_fh, $config_file or die $!;
-
-        read($conf_fh, my $buf, 50000);
-        $buf =~ s/\\\n#/\n#/mg; # fix broken multilines
-        $buf =~ s/\\\n//mg; # merge multilines
-
-        foreach my $token (split(/\n/, $buf)) {
-            next if ($token =~ m/^#/); # weed out whole comment lines immediately
-
-            $token =~ s/#.*//;  # kill off comments
-            $token =~ s/^\s+//;	# kill off leading spaces
-            $token =~ s/\s+$//;	# kill off trailing spaces
-
-            if ($token) {
-                my ($key, $value) = split(/\s*=\s*/, $token);	# split into key and value pair
-                $value = 0 unless ($value);
-                #print "key: $key, value: $value\n";
-                $config{$key} = $value;
-                #print "$config{$key}\n";
-            }
-        }
-
-        close $conf_fh;
-
-        return \%config;
     }
 
     # check directories exist and are writable
@@ -135,10 +86,10 @@ package PkgCacher {
             exit 1;
         }
 
-        foreach my $dir ($cfg->{cache_dir}, $cfg->{logdir},
-                "$cfg->{cache_dir}/headers", "$cfg->{cache_dir}/packages",
-                "$cfg->{cache_dir}/private", "$cfg->{cache_dir}/temp",
-                "$cfg->{cache_dir}/cache") {
+        foreach my $dir ($cfg->{'cache_dir'}, $cfg->{'logdir'},
+                "$cfg->{'cache_dir'}/headers", "$cfg->{'cache_dir'}/packages",
+                "$cfg->{'cache_dir'}/private", "$cfg->{'cache_dir'}/temp",
+                "$cfg->{'cache_dir'}/cache") {
             say STDERR "Info: Checking for $dir" if $ENV{'DEBUG'};
             if (not -d $dir) {
                 say STDERR "Warning: $dir missing. Doing mkdir($dir, 0755)";
@@ -158,7 +109,7 @@ package PkgCacher {
 
     # Convert a human-readable IPv4 address to raw form (4-byte string)
     # Returns undef if the address is invalid
-    sub ipv4_normalise ($addr) {
+    our sub ipv4_normalise ($self, $addr) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return undef if $addr =~ /:/;
         my @in = split (/\./, $addr);
@@ -243,7 +194,7 @@ package PkgCacher {
         }
     }
 
-    sub open_log_files ($self, $cfg) {
+    our sub open_log_files ($self, $cfg) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $logfile = "$cfg->{'logdir'}/access.log";
         my $errorfile = "$cfg->{'logdir'}/error.log";
@@ -280,13 +231,8 @@ package PkgCacher {
     }
 
     my $exlock;
-    my $exlockfile;
-    sub define_global_lockfile {
-        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        $exlockfile = shift;
-    }
 
-    sub set_global_lock ($self, $msg) {
+    sub set_global_lock ($self, $msg, $exlockfile) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         die ("Global lock file unknown") if not defined($exlockfile);
         $msg = '' if not defined($msg);
@@ -315,6 +261,7 @@ package PkgCacher {
         my $gid=$cfg->{'group'};
 
         if ($cfg->{'chroot'}) {
+            say STDERR "Info: Configuration requesting chroot'd operation";
             if ($uid || $gid) {
                 # open them now, before it is too late
                 # FIXME: reopening won't work, but the lose of file handles needs to be
@@ -326,6 +273,7 @@ package PkgCacher {
         }
 
         if ($gid) {
+            say STDERR "Info: Checking if requested GID($gid) exists" if $ENV{'DEBUG'};
             if ($gid =~ /^\d+$/) {
                 my $name = getgrgid($gid);
                 die "Unknown group ID: $gid (exiting)\n" if !$name;
@@ -333,9 +281,10 @@ package PkgCacher {
                 $gid=getgrnam($gid);
                 die "No such group (exiting)\n" if not defined($gid);
             }
-            $) = "$gid $gid";
-            $( = $gid;
-            $) =~ /^$gid\b/ && $( =~ /^$gid\b/ || barf("Unable to change group id");
+            say STDERR "Info: Requested GID($gid) exists" if $ENV{'DEBUG'};
+            $EGID = "$gid $gid";
+            $GID  = $gid;
+            $EGID =~ /^$gid\b/ and $GID =~ /^$gid\b/ or barf("Unable to change real and effective group id");
         }
 
         if ($uid) {
@@ -352,16 +301,20 @@ package PkgCacher {
         }
     }
 
-    sub barf {
+    our sub barf ($error) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        my $errs = shift;
-        die "--- $0: Fatal: $errs\n";
+        say STDERR 'Fatal error: ' . basename($0) . ": $error";
+        exit 1;
     }
 
-    sub is_index_file ($filename) {
+    our sub is_index_file ($self, $filename) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        my $index_files_regexp = '(?:'.read_patterns('index_files.regexp').')$';
-        return ($filename =~ /$index_files_regexp/);
+        my $index_files_regexp = '(?:' . $self->read_patterns('index_files.regexp') . ')$';
+        if (defined $filename) {
+            return ($filename =~ /$index_files_regexp/);
+        } else {
+            return undef;
+        }
     }
 
     #### common code for installation scripts ####
