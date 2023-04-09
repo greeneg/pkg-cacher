@@ -513,7 +513,7 @@ package PkgCacher::Request {
             dl_check:
             if (not $force_download and -e $cached_head and -e $cached_file and not $request_data{'cache_status'}) {
                 if (not sysopen($fromfile, $cached_file, O_RDONLY)) {
-                    release_global_lock();
+                    $pkg_cacher->release_global_lock();
                     barf("Unable to open $cached_file: $!.");
                 }
                 if (-f $complete_file) {
@@ -535,11 +535,11 @@ package PkgCacher::Request {
                         $pkg_cacher->debug_message($cfg, 'Another fetcher already working on file');
                     }
                 }
-                release_global_lock();
+                $pkg_cacher->release_global_lock();
             } else {
                 # bypass for offline mode, no forking, just report the "problem"
                 if ($cfg->{'offline_mode'}) {
-                    release_global_lock();
+                    $pkg_cacher->release_global_lock();
                     $self->sendrsp(503, 'Service not available: pkg-cacher offline');
                     next REQUEST;
                 }
@@ -555,10 +555,10 @@ package PkgCacher::Request {
                 # Set the status to MISS so the log file can show it had to be downloaded
                 if (!defined($request_data{'cache_status'})) { # except on special presets from index file checks above
                     $request_data{'cache_status'} = 'MISS';
-                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'});
+                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'}. ' LINE: '. __LINE__);
                 }
 
-                fetch_store ($host, $uri);	# releases the global lock
+                fetch_store($host, $uri);	# releases the global lock
                                             # after locking the target
                                             # file
             }
@@ -580,14 +580,14 @@ package PkgCacher::Request {
         my @result;
         my ($input_ranges) = $_[0] =~ /^bytes=([\d,-]+)$/i;
 
-        debug_message("parse_range: input_ranges = $input_ranges");
+        $pkg_cacher->debug_message($cfg, "parse_range: input_ranges = $input_ranges: LINE: ". __LINE__);
 
         if ($input_ranges) {
             HANDLE_RANGE:
             foreach my $range (split /,/,$input_ranges) {
                 my ($start, $end, $single) = $range =~ /^(\d+)?-(\d+)?$|^(\d+)$/;
 
-                debug_message("parse_range: start = $start, end = $end, single = $single");
+                $pkg_cacher->debug_message($cfg, "parse_range: start = $start, end = $end, single = $single: LINE: ". __LINE__);
 
                 if ($single) {
                     $start = $end = $single;
@@ -651,7 +651,7 @@ package PkgCacher::Request {
                 if (! -f $cached_head) {
                     # file removed while waiting for lock - download failure?!
                     # start over, maybe spawning an own fetcher
-                    release_global_lock;
+                    $pkg_cacher->release_global_lock();
                     return 2; # retry
                 }
 
