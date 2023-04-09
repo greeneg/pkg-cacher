@@ -189,7 +189,7 @@ EOM
 
             $cfg = $newcfg;
 
-            $pkg_cacher  = PkgCacher->new($cfg);
+            $pkg_cacher  = PkgCacher->new($cfg, $exlockfile);
             # Ensure config is sane and filesystem is present and readable
             $pkg_cacher->check_install($cfg);
 
@@ -293,7 +293,7 @@ EOM
         # Output data as soon as we print it
         $| = 1;
 
-        $pkg_request = PkgCacher::Request->new($cfg, \%pathmap);
+        $pkg_request = PkgCacher::Request->new($cfg, $exlockfile, \%pathmap);
 
         #Signal Handlers
         say STDERR "Info: Setting UNIX signal handlers" if $ENV{'DEBUG'};

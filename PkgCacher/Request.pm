@@ -67,14 +67,14 @@ package PkgCacher::Request {
     my $pkg_cacher;
 
     # Subroutines
-    sub new ($class, $_cfg, $pathmap) {
+    sub new ($class, $_cfg, $_elfile, $pathmap) {
         say STDERR "Constructing PkgCacher object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
 
         $cfg = $_cfg;
         %pathmap = %{$pathmap};
 
-        $pkg_cacher = PkgCacher->new($cfg);
+        $pkg_cacher = PkgCacher->new($cfg, $_elfile);
         $static_files_regexp = '(?:' . $pkg_cacher->read_patterns('static_files.regexp') . ')$';
 
         bless($self, $class);
@@ -1048,9 +1048,9 @@ EOF
 
         my $altbit=0;
         {
-            if ("$PERL_VERSION" ge "v5.36.0") {
+#            if ("$PERL_VERSION" ge "v5.36.0") {
                 no warnings 'experimental';
-            }
+#            }
             for (@_) {
                 $altbit = not $altbit;
                 if ($altbit) {

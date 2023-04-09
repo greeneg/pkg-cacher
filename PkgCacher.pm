@@ -33,11 +33,13 @@ package PkgCacher {
     our $erlog_fh = undef;
     our $aclog_fh = undef;
 
-    sub new ($class, $_cfg) {
+    my $exlockfile = undef;
+    sub new ($class, $_cfg, $_elfile) {
         say STDERR "Constructing PkgCacher object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
 
         $cfg = $_cfg;
+        $exlockfile = $_elfile;
 
         bless($self, $class);
         return $self;
@@ -232,7 +234,7 @@ package PkgCacher {
 
     my $exlock;
 
-    sub set_global_lock ($self, $msg, $exlockfile = undef) {
+    sub set_global_lock ($self, $msg) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         die ("Global lock file unknown") if not defined($exlockfile);
         $msg = '' if not defined($msg);
