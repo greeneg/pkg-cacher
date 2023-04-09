@@ -408,10 +408,11 @@ package PkgCacher::Request {
             if ($pkg_cacher->is_index_file($filename)) {
                 $pkg_cacher->debug_message($cfg, "known as index file: $filename");
                 # in offline mode, if not already forced deliver it as-is, otherwise check freshness
+                say STDERR "debug: DUMP: ". Dumper(%request_data);
                 if ($request_data{'cache_status'} ne 'EXPIRED' and
                     -f $cached_file and
                     -f $cached_head and
-                    !$cfg->{'offline_mode'}) {
+                    not $cfg->{'offline_mode'}) {
                     if ($cfg->{'expire_hours'} > 0) {
                         my $now = time();
                         my @stat = stat($cached_file);
