@@ -669,7 +669,7 @@ package PkgCacher::Request {
                         }
                     }
                     close($in);
-                    release_global_lock;
+                    $pkg_cacher->release_global_lock();
                     sleep 2;
                     next WAIT_FOR_HEADER;
                 }
@@ -687,7 +687,7 @@ package PkgCacher::Request {
                 }
 
                 close($in);
-                release_global_lock;
+                $pkg_cacher->release_global_lock();
 
                 last WAIT_FOR_HEADER;
             }
@@ -718,7 +718,7 @@ package PkgCacher::Request {
         # keep alive or not?
         # If error, force close
         if ($code != 200) {
-            debug_message("Got $code error. Going to close connection.");
+            $pkg_cacher->debug_message($cfg, "Got $code error. Going to close connection: LINE: ". __LINE__);
 
             $status_header .= "Connection: Close\r\n";
             print $con $status_header."\r\n";
@@ -770,14 +770,14 @@ package PkgCacher::Request {
             return;
         }
 
-        debug_message("ready to send contents of $cached_file");
+        $pkg_cacher->debug_message($cfg, "ready to send contents of $cached_file: LINE: ". __LINE__);
 
         RANGE_ENTRY:
         foreach my $range_entry (@range_list) {
             my $begin = $range_entry->[0];
             my $end = $range_entry->[1];
 
-            debug_message("begin = $begin, end = $end");
+            $pkg_cacher->debug_message($cfg, "begin = $begin, end = $end: LINE: ". __LINE__);
             next RANGE_ENTRY if ($begin >= $total_length);
 
             # needs to print the header first
