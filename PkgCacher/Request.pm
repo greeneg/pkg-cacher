@@ -1044,7 +1044,7 @@ EOF
 
         my $altbit=0;
         {
-            no warnings 'experimental::args_array_with_signatures';
+            no warnings 'experimental::args_array_with_signatures' if $PERL_VERSION ge v5.36.0;
             for (@_) {
                 $altbit = not $altbit;
                 if ($altbit) {
