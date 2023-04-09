@@ -409,7 +409,8 @@ package PkgCacher::Request {
                 $pkg_cacher->debug_message($cfg, "known as index file: $filename");
                 # in offline mode, if not already forced deliver it as-is, otherwise check freshness
                 say STDERR "debug: DUMP: ". Dumper(%request_data);
-                if ($request_data{'cache_status'} ne 'EXPIRED' and
+                if (exists $request_data{'cache_status'} and
+                    $request_data{'cache_status'} ne 'EXPIRED' and
                     -f $cached_file and
                     -f $cached_head and
                     not $cfg->{'offline_mode'}) {
