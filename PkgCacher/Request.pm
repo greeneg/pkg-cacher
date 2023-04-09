@@ -405,7 +405,7 @@ package PkgCacher::Request {
 
             $pkg_cacher->debug_message($cfg, "looking for $cached_file");
 
-            if (is_index_file($filename)) {
+            if ($pkg_cacher->is_index_file($filename)) {
                 $pkg_cacher->debug_message($cfg, "known as index file: $filename");
                 # in offline mode, if not already forced deliver it as-is, otherwise check freshness
                 if ($request_data{'cache_status'} ne 'EXPIRED' and
