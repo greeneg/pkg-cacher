@@ -304,9 +304,8 @@ package PkgCacher::Fetch {
         my $url = "http://$uri";
         $pkg_cacher->debug_message($cfg, "fetch: try to fetch $url: LINE: ". __LINE__);
 
-        $cached_file = undef;
-        sysopen($pkfd, $cached_file, O_RDWR)
-          || barf("Unable to open $cached_file for writing: $!");
+        sysopen($pkfd, $filename, O_RDWR)
+          || barf("Unable to open $filename for writing: $!");
 
         # jump from the global lock to a lock on the target file
         flock($pkfd, LOCK_EX) || barf('Unable to lock the target file');
@@ -315,7 +314,7 @@ package PkgCacher::Fetch {
         $response = ${libcurl($host, $uri, \$pkfd)};
 
         flock($pkfd, LOCK_UN);
-        close($pkfd) || warn "Close $cached_file failed, $!";
+        close($pkfd) || warn "Close $filename failed, $!";
 
         $pkg_cacher->debug_message($cfg, 'fetch: libcurl returned: LINE: '. __LINE__);
 
