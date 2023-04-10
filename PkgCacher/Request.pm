@@ -525,7 +525,7 @@ package PkgCacher::Request {
             if (not $force_download and -e $cached_head and -e $cached_file and not $request_data{'cache_status'}) {
                 if (not sysopen($fromfile, $cached_file, O_RDONLY)) {
                     $pkg_cacher->release_global_lock();
-                    barf("Unable to open $cached_file: $!.");
+                    $pkg_cacher->barf("Unable to open $cached_file: $!.");
                 }
                 if (-f $complete_file) {
                     # not much to do if complete
@@ -559,10 +559,10 @@ package PkgCacher::Request {
                 $pkg_cacher->debug_message($cfg, 'file does not exist or download required, forking fetcher');
                 # Create the file, it will reopened in fetch_store
                 sysopen(my $pkfd, $cached_file, O_RDWR|O_CREAT|O_EXCL, 0644)
-                    || barf("Unable to create new $cached_file: $!");
+                    or $pkg_cacher->barf("Unable to create new $cached_file: $!");
                 close($pkfd);
                 sysopen($fromfile, $cached_file, O_RDONLY)
-                    || barf("Unable to open $cached_file: $!.");
+                    or $pkg_cacher->barf("Unable to open $cached_file: $!.");
                 # Set the status to MISS so the log file can show it had to be downloaded
                 if (!defined($request_data{'cache_status'})) { # except on special presets from index file checks above
                     $request_data{'cache_status'} = 'MISS';

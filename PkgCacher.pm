@@ -68,7 +68,7 @@ package PkgCacher {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         # Die if we have not been configured correctly
         say STDERR "DEBUG: ". Dumper($cfg) if $ENV{'DEBUG'};
-        if (exists $cfg->{'cache_dir'} && defined $cfg->{'cache_dir'}) {
+        if (exists $cfg->{'cache_dir'} and defined $cfg->{'cache_dir'}) {
             if (not -d $cfg->{'cache_dir'}) {
                 say STDERR basename($PROGRAM_NAME) . ": No cache_dir directory! Exiting";
                 exit 2;
@@ -102,9 +102,9 @@ package PkgCacher {
         for my $file ("$cfg->{logdir}/access.log", "$cfg->{logdir}/error.log") {
             if (not -e $file) {
                 say STDERR "Warning: $file missing. Creating";
-                open(my $tmp, ">$file") || die "Unable to create $file";
+                open(my $tmp, ">$file") or die "Unable to create $file";
                 close($tmp);
-                chown($uid, $gid, $file) || die "Unable to set ownership for $file";
+                chown($uid, $gid, $file) or die "Unable to set ownership for $file";
             }
         }
     }
@@ -119,7 +119,7 @@ package PkgCacher {
         my $out = '';
         foreach my $num (@in) {
             return undef if $num !~ /^[[:digit:]]{1,3}$/o;
-            $out .= pack ("C", $num);
+            $out .= pack("C", $num);
         }
         return $out;
     }
@@ -129,14 +129,14 @@ package PkgCacher {
     sub ipv6_normalise ($addr) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         return "\0" x 16 if $addr eq '::';
-        return undef if $addr =~ /^:[^:]/  || $addr =~ /[^:]:$/ || $addr =~ /::.*::/;
+        return undef if $addr =~ /^:[^:]/  or $addr =~ /[^:]:$/ or $addr =~ /::.*::/;
         my @in = split (/:/, $addr);
         return undef if $#in > 7;
-        shift @in if $#in >= 1 && $in[0] eq '' && $in[1] eq ''; # handle ::1 etc.
+        shift @in if $#in >= 1 and $in[0] eq '' and $in[1] eq ''; # handle ::1 etc.
         my $num;
         my $out = '';
         my $tail = '';
-        while (defined ($num = shift @in) && $num ne '') {  # Until '::' found or end
+        while (defined ($num = shift @in) and $num ne '') {  # Until '::' found or end
             # Mapped IPv4
             if ($num =~ /^(?:[[:digit:]]{1,3}\.){3}[[:digit:]]{1,3}$/) {
                 $out .= ipv4_normalise($num);
@@ -164,7 +164,7 @@ package PkgCacher {
     # Make a netmask from a CIDR network-part length and the IP address length
     sub make_mask ($mask, $bits) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        return undef if $mask < 0 || $mask > $bits;
+        return undef if $mask < 0 or $mask > $bits;
         my $m = ("\xFF" x ($mask / 8));
         $m .= chr ((-1 << (8 - $mask % 8)) & 255) if $mask % 8;
         return $m . ("\0" x ($bits / 8 - length ($m)));
@@ -202,10 +202,10 @@ package PkgCacher {
         my $errorfile = "$cfg->{'logdir'}/error.log";
 
         if (defined $erlog_fh) {
-            open($erlog_fh, ">>", "$errorfile") or barf("Unable to open $errorfile, $!");
+            open($erlog_fh, ">>", "$errorfile") or $self->barf("Unable to open $errorfile, $!");
         }
         if (defined $aclog_fh) {
-            open($aclog_fh,">>", "$logfile") or barf("Unable to open $logfile, $!");
+            open($aclog_fh,">>", "$logfile") or $self->barf("Unable to open $logfile, $!");
         }
         # Install signal handlers to capture error messages
         $SIG{__WARN__} = sub { $self->write_errorlog("warn [$PROCESS_ID]: " . shift) };
@@ -227,7 +227,7 @@ package PkgCacher {
             flock($erlog_fh, LOCK_EX);
             # files may need to be reopened sometimes - reason unknown yet, EBADF
             # results
-            syswrite($erlog_fh,"$time|$msg\n") || $self->open_log_files();
+            syswrite($erlog_fh,"$time|$msg\n") or $self->open_log_files();
             flock($erlog_fh, LOCK_UN);
         }
     }
@@ -245,7 +245,7 @@ package PkgCacher {
         my $createstr = (-f $exlockfile) ? '' : '>';
 
         open($exlock, $createstr.$exlockfile);
-        if ( !$exlock || not flock($exlock, LOCK_EX)) {
+        if (not $exlock or not flock($exlock, LOCK_EX)) {
             $self->debug_message($cfg, "unable to achieve a lock on $exlockfile: $!: LINE: ". __LINE__);
             die "Unable to achieve lock on $exlockfile: $!";
         }
@@ -264,13 +264,13 @@ package PkgCacher {
 
         if ($cfg->{'chroot'}) {
             say STDERR "Info: Configuration requesting chroot'd operation";
-            if ($uid || $gid) {
+            if ($uid or $gid) {
                 # open them now, before it is too late
                 # FIXME: reopening won't work, but the lose of file handles needs to be
                 # made reproducible first
                 $self->open_log_files;
             }
-            chroot $cfg->{'chroot'} || die "Unable to chroot, aborting.\n";
+            chroot $cfg->{'chroot'} or die "Unable to chroot, aborting.\n";
             chdir $cfg->{'chroot'};
         }
 
@@ -278,7 +278,7 @@ package PkgCacher {
             say STDERR "Info: Checking if requested GID($gid) exists" if $ENV{'DEBUG'};
             if ($gid =~ /^\d+$/) {
                 my $name = getgrgid($gid);
-                die "Unknown group ID: $gid (exiting)\n" if !$name;
+                die "Unknown group ID: $gid (exiting)\n" if not $name;
             } else {
                 $gid=getgrnam($gid);
                 die "No such group (exiting)\n" if not defined($gid);
@@ -286,7 +286,7 @@ package PkgCacher {
             say STDERR "Info: Requested GID($gid) exists" if $ENV{'DEBUG'};
             $EGID = "$gid $gid";
             $GID  = $gid;
-            $EGID =~ /^$gid\b/ and $GID =~ /^$gid\b/ or barf("Unable to change real and effective group id");
+            $EGID =~ /^$gid\b/ and $GID =~ /^$gid\b/ or $self->barf("Unable to change real and effective group id");
         }
 
         if ($uid) {
@@ -299,11 +299,11 @@ package PkgCacher {
             }
             $> = $uid;
             $< = $uid;
-            $> == $uid && $< == $uid || barf("Unable to change user id");
+            $> == $uid and $< == $uid or $self->barf("Unable to change user id");
         }
     }
 
-    our sub barf ($error) {
+    our sub barf ($self, $error) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         say STDERR 'Fatal error: ' . basename($0) . ": $error";
         exit 1;

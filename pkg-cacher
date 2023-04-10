@@ -363,7 +363,7 @@ EOM
                 $pkg_cacher->debug_message($cfg, 'fork listener ' . (defined($daemon_addr) ? $daemon_addr : '') . ": LINE: ". __LINE__);
                 my $pid = fork(); # for each daemon_addr
                 if ($pid < 0) {
-                    barf('fork() failed');
+                    $pkg_cacher->barf('fork() failed');
                 }
                 if ($pid > 0) {
                     # parent
@@ -412,7 +412,7 @@ EOM
 
                 my $pid = fork();
                 if ($pid < 0) {
-                    barf('fork() failed');
+                    $pkg_cacher->barf('fork() failed');
                 }
 
                 if ($pid > 0) {

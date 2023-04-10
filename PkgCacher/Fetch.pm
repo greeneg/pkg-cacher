@@ -305,7 +305,7 @@ package PkgCacher::Fetch {
         $pkg_cacher->debug_message($cfg, "fetch: try to fetch $url: LINE: ". __LINE__);
 
         sysopen($pkfd, $filename, O_RDWR)
-          || barf("Unable to open $filename for writing: $!");
+          || $pkg_cacher->barf("Unable to open $filename for writing: $!");
 
         # jump from the global lock to a lock on the target file
         flock($pkfd, LOCK_EX) || barf('Unable to lock the target file');
