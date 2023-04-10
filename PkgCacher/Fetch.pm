@@ -311,12 +311,12 @@ package PkgCacher::Fetch {
 
         # jump from the global lock to a lock on the target file
         flock($pkfd, LOCK_EX) || barf('Unable to lock the target file');
-        release_global_lock();
+        $pkg_cacher->release_global_lock();
 
         $response = ${libcurl($host, $uri, \$pkfd)};
 
         flock($pkfd, LOCK_UN);
-        close($pkfd) || warn "Close $cached_file failed, $!";
+        close($pkfd) or warn "Close $cached_file failed, $!";
 
         $pkg_cacher->debug_message($cfg, 'fetch: libcurl returned: LINE: '. __LINE__);
 
@@ -325,14 +325,14 @@ package PkgCacher::Fetch {
 
             # sanity check that file size on disk matches the content-length in the header
             my $expected_length = -1;
-            if (open(my $chdfd, $cached_head)) {
-                for(<$chdfd>){
-                    if(/^Content-Length:\s*(\d+)/) {
+            if (open my $chdfd, $cached_head) {
+                foreach my $l (<$chdfd>){
+                    if($l =~ /^Content-Length:\s*(\d+)/) {
                         $expected_length = $1;
                         last;
                     }
                 }
-                close($chdfd);
+                close $chdfd;
             }
 
             my $file_size = -s $cached_file;
@@ -340,7 +340,7 @@ package PkgCacher::Fetch {
             if ($expected_length != -1) {
                 if ($file_size != $expected_length) {
                     unlink($cached_file);
-                    barf("$cached_file is the wrong size, expected $expected_length, got $file_size");
+                    $pkg_cacher->barf("$cached_file is the wrong size, expected $expected_length, got $file_size");
                 }
             } else {
                 # There was no Content-Length header so chunked transfer, manufacture one
@@ -354,14 +354,14 @@ package PkgCacher::Fetch {
 
             my $sha1sum = `sha1sum $cached_file`;
             if (not $sha1sum) {
-                barf("Unable to calculate SHA-1 sum for $cached_file - error = $?");
+                $pkg_cacher->barf("Unable to calculate SHA-1 sum for $cached_file - error = $?");
             }
 
             ($sha1sum) = $sha1sum =~ /([0-9A-Fa-f]+) +.*/;
 
             $pkg_cacher->debug_message($cfg, "fetch: sha1sum $cached_file = $sha1sum: LINE: ". __LINE__);
 
-            set_global_lock(': link to cache');
+            $pkg_cacher->set_global_lock(': link to cache');
 		
             if (-f "$cfg->{cache_dir}/cache/$filename.$sha1sum") {
                 unlink($cached_file);
@@ -370,7 +370,7 @@ package PkgCacher::Fetch {
                 link($cached_file, "$cfg->{cache_dir}/cache/$filename.$sha1sum");
             }
 
-            release_global_lock();
+            $pkg_cacher->release_global_lock();
 
             $pkg_cacher->debug_message($cfg, "fetch: setting complete flag for $filename: LINE: ". __LINE__);
             # Now create the file to show the pickup is complete, also store the original URL there
