@@ -569,9 +569,9 @@ package PkgCacher::Request {
                     $pkg_cacher->debug_message($cfg, 'Cache status: '. $request_data{'cache_status'}. ' LINE: '. __LINE__);
                 }
 
-                $pc_fetcher->fetch_store($host, $uri);	# releases the global lock
-                                            # after locking the target
-                                            # file
+                $pc_fetcher->fetch_store($host, $uri, $filepath); # releases the global lock
+                                                                  # after locking the target
+                                                                  # file
             }
             $pkg_cacher->debug_message($cfg, 'checks done, can return now');
             my $ret = return_file ($request_data{'send_head_only'} ? undef : \$fromfile, $request_data{'rangereq'});
