@@ -65,6 +65,7 @@ package PkgCacher::Request {
     my $cfg;
     my %pathmap;
     my $pkg_cacher;
+    my $pc_fetcher;
 
     # Subroutines
     sub new ($class, $_cfg, $_elfile, $pathmap) {
@@ -75,7 +76,14 @@ package PkgCacher::Request {
         %pathmap = %{$pathmap};
 
         $pkg_cacher = PkgCacher->new($cfg, $_elfile);
+        $pc_fetcher = PkgCacher::Fetch->new($pkg_cacher);
+
         $static_files_regexp = '(?:' . $pkg_cacher->read_patterns('static_files.regexp') . ')$';
+
+        # now that we're done with assignments, get rid of the temp vars
+        undef $_cfg;
+        undef $pathmap;
+        undef $_elfile;
 
         bless($self, $class);
         return $self;
@@ -561,7 +569,7 @@ package PkgCacher::Request {
                     $pkg_cacher->debug_message($cfg, $request_data{'cache_status'}. ' LINE: '. __LINE__);
                 }
 
-                fetch_store($host, $uri);	# releases the global lock
+                $pc_fetcher->fetch_store($host, $uri);	# releases the global lock
                                             # after locking the target
                                             # file
             }

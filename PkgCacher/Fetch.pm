@@ -44,6 +44,18 @@ package PkgCacher::Fetch {
     our $complete_file;
     our @cache_control;
 
+    my $pkg_cacher = undef;
+    sub new ($class, $_pkg_cacher) {
+        say STDERR "Constructing PkgCacher::Config object: ". (caller(0))[3] if $ENV{'DEBUG'};
+        my $self = {};
+
+        $pkg_cacher = $_pkg_cacher;
+        undef $_pkg_cacher;
+
+        bless($self, $class);
+        return $self;
+    }
+
     # Subroutines
     sub head_callback {
         my $chunk = $_[0];
