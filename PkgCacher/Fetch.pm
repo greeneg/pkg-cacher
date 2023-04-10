@@ -37,19 +37,21 @@ package PkgCacher::Fetch {
 
     # Data shared between files
     our $version;
-    our $cfg;
     our %pathmap;
     our $cached_file;
     our $cached_head;
     our $complete_file;
     our @cache_control;
 
+    my $cfg;
     my $pkg_cacher = undef;
-    sub new ($class, $_pkg_cacher) {
+    sub new ($class, $_cfg, $_pkg_cacher) {
         say STDERR "Constructing PkgCacher::Config object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
 
+        $cfg = $_cfg;
         $pkg_cacher = $_pkg_cacher;
+        undef $_cfg;
         undef $_pkg_cacher;
 
         bless($self, $class);
@@ -298,7 +300,7 @@ package PkgCacher::Fetch {
         ($filename) = ($uri =~ /\/?([^\/]+)$/);
 
         my $url = "http://$host$uri";
-        debug_message("fetch: try to fetch $url");
+        $pkg_cacher->debug_message($cfg, "fetch: try to fetch $url: LINE: ". __LINE__);
 
         sysopen($pkfd, $cached_file, O_RDWR)
           || barf("Unable to open $cached_file for writing: $!");
@@ -312,10 +314,10 @@ package PkgCacher::Fetch {
         flock($pkfd, LOCK_UN);
         close($pkfd) || warn "Close $cached_file failed, $!";
 
-        debug_message('fetch: libcurl returned');
+        $pkg_cacher->debug_message($cfg, 'fetch: libcurl returned: LINE: '. __LINE__);
 
         if ($response->is_success) {
-            debug_message("fetch: stored $url as $cached_file");
+            $pkg_cacher->debug_message($cfg, "fetch: stored $url as $cached_file: LINE: ". __LINE__);
 
             # sanity check that file size on disk matches the content-length in the header
             my $expected_length = -1;
@@ -347,14 +349,13 @@ package PkgCacher::Fetch {
             # it out to disk before creating the complete flag file
 
             my $sha1sum = `sha1sum $cached_file`;
-
-            if (!$sha1sum) {
+            if (not $sha1sum) {
                 barf("Unable to calculate SHA-1 sum for $cached_file - error = $?");
             }
 
             ($sha1sum) = $sha1sum =~ /([0-9A-Fa-f]+) +.*/;
 
-            debug_message("fetch: sha1sum $cached_file = $sha1sum");
+            $pkg_cacher->debug_message($cfg, "fetch: sha1sum $cached_file = $sha1sum: LINE: ". __LINE__);
 
             set_global_lock(': link to cache');
 		
@@ -367,20 +368,20 @@ package PkgCacher::Fetch {
 
             release_global_lock();
 
-            debug_message("fetch: setting complete flag for $filename");
+            $pkg_cacher->debug_message($cfg, "fetch: setting complete flag for $filename: LINE: ". __LINE__);
             # Now create the file to show the pickup is complete, also store the original URL there
             open(MF, ">$complete_file") || die $!;
             print MF $response->request;
             close(MF);
         } elsif (HTTP::Status::is_client_error($response->code)) {
-            debug_message(
+            $pkg_cacher->debug_message($cfg,
                 'fetch: upstream server returned error ' . $response->code . " for " .
                 $response->request .
-                ". Deleting $cached_file."
+                ". Deleting $cached_file: LINE: ". __LINE__
             );
             unlink $cached_file;
         }
-        debug_message('fetch: fetcher done');
+        $pkg_cacher->debug_message($cfg, 'fetch: fetcher done: LINE: '. __LINE__);
     }
 
     true;
