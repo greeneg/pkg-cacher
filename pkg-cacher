@@ -396,7 +396,7 @@ EOM
 
             $pkg_cacher->debug_message(
                 $cfg,
-                "Pkg-Cacher version $pkg_cacher::VERSION started with Debug output enabled, accepting connections on " .
+                "Pkg-Cacher version $PkgCacher::VERSION started with Debug output enabled, accepting connections on " .
                   $daemon->sockhost . ':' . $daemon->sockport . ': LINE: '. __LINE__
             );
 
