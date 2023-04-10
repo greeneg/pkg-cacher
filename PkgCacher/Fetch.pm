@@ -118,8 +118,9 @@ package PkgCacher::Fetch {
         return length($chunk); # OK
     }
 
-    sub debug_callback ($data, $type) {
+    our sub debug_callback ($self, $data, $type) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        say STDERR "debug: Dumping arguments list: ". Dumper(@_) if $ENV{'DEBUG'};
         $pkg_cacher->write_errorlog("debug CURLINFO_"
             .('TEXT','HEADER_IN','HEADER_OUT','DATA_IN','DATA_OUT','SSL_DATA_IN','SSL_DATA_OUT')[$type]
             ." [$PROCESS_ID]: $data") if ($type < $cfg->{'debug'});
