@@ -142,12 +142,12 @@ package PkgCacher::Fetch {
             $curl->setopt(CURLOPT_INTERFACE, $cfg->{'use_interface'}) if defined $cfg->{'use_interface'};
 
             # Callbacks
-            $curl->setopt(CURLOPT_WRITEFUNCTION, \body_callback);
-            $curl->setopt(CURLOPT_HEADERFUNCTION, \head_callback);
+            $curl->setopt(CURLOPT_WRITEFUNCTION, \&body_callback);
+            $curl->setopt(CURLOPT_HEADERFUNCTION, \&head_callback);
 
             # Disable this, it isn't supported on Debian Etch
-            # $curl->setopt(CURLOPT_DEBUGFUNCTION, \&debug_callback);
-            # $curl->setopt(CURLOPT_VERBOSE, $cfg->{debug});
+            $curl->setopt(CURLOPT_DEBUGFUNCTION, \&debug_callback);
+            $curl->setopt(CURLOPT_VERBOSE, $cfg->{debug} or $ENV{'DEBUG'});
 
             # SSL
             if (not $cfg->{'require_valid_ssl'}) {
@@ -202,9 +202,11 @@ package PkgCacher::Fetch {
 
             # Proxy - SSL or otherwise - Needs to be set per host
             if ($url =~ /^https:/) {
+                say STDERR "debug: Setting up HTTPS proxy configuration" if $ENV{'DEBUG'};
                 $curl->setopt(CURLOPT_PROXY, $cfg->{'https_proxy'}) if ($cfg->{'use_proxy'} and $cfg->{'https_proxy'});
                 $curl->setopt(CURLOPT_PROXYUSERPWD, $cfg->{'https_proxy_auth'}) if ($cfg->{'use_proxy_auth'});
             } else {
+                say STDERR "debug: Setting up HTTP proxy configuration" if $ENV{'DEBUG'};
                 $curl->setopt(CURLOPT_PROXY, $cfg->{'http_proxy'}) if ($cfg->{'use_proxy'} and $cfg->{'http_proxy'});
                 $curl->setopt(CURLOPT_PROXYUSERPWD, $cfg->{'http_proxy_auth'}) if ($cfg->{'use_proxy_auth'});
             }
