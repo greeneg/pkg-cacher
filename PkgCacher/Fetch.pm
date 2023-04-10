@@ -304,7 +304,7 @@ package PkgCacher::Fetch {
         my $url = "http://$uri";
         $pkg_cacher->debug_message($cfg, "fetch: try to fetch $url: LINE: ". __LINE__);
 
-        $cached_file = "$cfg->{cache_dir}/packages/$host$uri";
+        $cached_file = "$cfg->{cache_dir}/packages/$host/$uri";
 
         sysopen($pkfd, $cached_file, O_RDWR)
           || $pkg_cacher->barf("Unable to open $cached_file for writing: $!");
