@@ -290,7 +290,7 @@ package PkgCacher::Fetch {
         return \$response;
     }
 
-    sub fetch_store ($host, $uri) {
+    our sub fetch_store ($self, $host, $uri) {
         my $response;
         my $pkfd;
         my $filename;

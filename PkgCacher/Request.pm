@@ -566,7 +566,7 @@ package PkgCacher::Request {
                 # Set the status to MISS so the log file can show it had to be downloaded
                 if (!defined($request_data{'cache_status'})) { # except on special presets from index file checks above
                     $request_data{'cache_status'} = 'MISS';
-                    $pkg_cacher->debug_message($cfg, $request_data{'cache_status'}. ' LINE: '. __LINE__);
+                    $pkg_cacher->debug_message($cfg, 'Cache status: '. $request_data{'cache_status'}. ' LINE: '. __LINE__);
                 }
 
                 $pc_fetcher->fetch_store($host, $uri);	# releases the global lock
