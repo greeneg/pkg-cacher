@@ -37,22 +37,24 @@ package PkgCacher::Fetch {
     use File::Path;
 
     # Data shared between files
-    our %pathmap;
     our $cached_file;
     our $cached_head;
     our $complete_file;
     our @cache_control;
 
     my $cfg;
+    my %pathmap;
     my $pkg_cacher = undef;
-    sub new ($class, $_cfg, $_pkg_cacher) {
+    sub new ($class, $_cfg, $_pkg_cacher, $pathmap) {
         say STDERR "Constructing PkgCacher::Fetch object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
 
         $cfg = $_cfg;
         $pkg_cacher = $_pkg_cacher;
+        %pathmap = %{$pathmap};
         undef $_cfg;
         undef $_pkg_cacher;
+        undef $pathmap;
 
         bless($self, $class);
         return $self;

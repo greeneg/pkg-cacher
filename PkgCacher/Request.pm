@@ -76,7 +76,7 @@ package PkgCacher::Request {
         %pathmap = %{$pathmap};
 
         $pkg_cacher = PkgCacher->new($cfg, $_elfile);
-        $pc_fetcher = PkgCacher::Fetch->new($cfg, $pkg_cacher);
+        $pc_fetcher = PkgCacher::Fetch->new($cfg, $pkg_cacher, $pathmap);
 
         $static_files_regexp = '(?:' . $pkg_cacher->read_patterns('static_files.regexp') . ')$';
 
