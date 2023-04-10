@@ -147,7 +147,7 @@ package PkgCacher::Fetch {
 
             # Disable this, it isn't supported on Debian Etch
             $curl->setopt(CURLOPT_DEBUGFUNCTION, \&debug_callback);
-            $curl->setopt(CURLOPT_VERBOSE, $cfg->{debug} or $ENV{'DEBUG'});
+            $curl->setopt(CURLOPT_VERBOSE, ($cfg->{'debug'} or $ENV{'DEBUG'}));
 
             # SSL
             if (not $cfg->{'require_valid_ssl'}) {
