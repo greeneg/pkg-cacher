@@ -94,7 +94,7 @@ package PkgCacher::Fetch {
         open (my $chfd, ">$cached_head") || barf("Unable to open $cached_head, $!");
         print $chfd ${$_[0]}->as_string;
         close($chfd);
-        release_global_lock;
+        $pkg_cacher->release_global_lock();
     }
 
     sub body_callback {
