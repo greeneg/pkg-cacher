@@ -82,11 +82,11 @@ package PkgCacher::Fetch {
                 last SWITCH;
             };
             /^\r\n$/ && do {
-                debug_message("fetch: libcurl download of headers complete");
+                $pkg_cacher->debug_message($cfg, "fetch: libcurl download of headers complete: LINE: ". __PACKAGE__ .':'. __LINE__);
                 &write_header(\$response) if $write;
                 last SWITCH;
             };
-            info_message("fetch: warning, unrecognised line in head_callback: $chunk");
+            $pkg_cacher->info_message("fetch: warning, unrecognised line in head_callback: $chunk");
         }
 
         return length($chunk); # OK
@@ -129,7 +129,7 @@ package PkgCacher::Fetch {
             say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
             return \$curl if (defined($curl));
 
-            $pkg_cacher->debug_message($cfg, 'fetch: init new libcurl object: LINE: '. __LINE__);
+            $pkg_cacher->debug_message($cfg, 'fetch: init new libcurl object: LINE: '. __PACKAGE__ .':'. __LINE__);
             $curl = WWW::Curl::Easy->new();
 
             # General
@@ -164,10 +164,11 @@ package PkgCacher::Fetch {
                 warn "Unrecognised limit: $l. Ignoring.";
             }
             if ($maxspeed) {
-                $pkg_cacher->debug_message($cfg, "fetch: Setting bandwidth limit to $maxspeed: LINE: ". __LINE__);
+                $pkg_cacher->debug_message($cfg, "fetch: Setting bandwidth limit to $maxspeed: LINE: ". __PACKAGE__ .':'. __LINE__);
                 $curl->setopt(CURLOPT_MAX_RECV_SPEED_LARGE, $maxspeed);
             }
 
+            say STDERR "debug: Dumping curl object: " . Dumper($curl) if $ENV{'DEBUG'};
             return \$curl;
         }
     }
@@ -196,7 +197,7 @@ package PkgCacher::Fetch {
 
             # make the virtual hosts real.
             $hostcand = shift(@hostpaths);
-            $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __LINE__);
+            $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __PACKAGE__ .':'. __LINE__);
             $url = $hostcand = ($hostcand =~ /^https?:/ ? '' : 'http://').$hostcand.$uri;
 
             # Proxy - SSL or otherwise - Needs to be set per host
@@ -212,10 +213,10 @@ package PkgCacher::Fetch {
 
             while (true) {
                 if (not $pkfdref) {
-                    $pkg_cacher->debug_message($cfg, 'fetch: setting up for HEAD request: LINE: '. __LINE__);
+                    $pkg_cacher->debug_message($cfg, 'fetch: setting up for HEAD request: LINE: '. __PACKAGE__ .':'. __LINE__);
                     $curl->setopt(CURLOPT_NOBODY,1);
                 } else {
-                    $pkg_cacher->debug_message($cfg, 'fetch: setting up for GET request: LINE: '. __LINE__);
+                    $pkg_cacher->debug_message($cfg, 'fetch: setting up for GET request: LINE: '. __PACKAGE__ .':'. __LINE__);
                     $curl->setopt(CURLOPT_HTTPGET,1);
                     $curl->setopt(CURLOPT_FILE, $$pkfdref);
                 }
