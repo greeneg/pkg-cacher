@@ -395,8 +395,9 @@ package PkgCacher::Request {
             $cached_head = "$cfg->{cache_dir}/headers/$host$uri";
             $complete_file = "$cfg->{cache_dir}/private/$host$uri.complete";
 
+            my $filepath = undef;
             foreach my $file ($cached_file, $cached_head, $complete_file) {
-                my ($filepath) = $file =~ /(.*\/)[^\/]+/;
+                ($filepath) = $file =~ /(.*\/)[^\/]+/;
 
                 $pkg_cacher->debug_message($cfg, "Checking for directory $filepath");
 
