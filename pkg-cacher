@@ -48,8 +48,6 @@ package main {
     use PkgCacher::Request;
 
     # Set some defaults
-    our $version="x";
-
     my $pkg_cacher;
     my $pkg_cacher_config = PkgCacher::Config->new();
     my $pc_fio = PkgCacher::FileIO->new();
@@ -398,7 +396,7 @@ EOM
 
             $pkg_cacher->debug_message(
                 $cfg,
-                "Pkg-Cacher version $version started with Debug output enabled, accepting connections on " .
+                "Pkg-Cacher version $pkg_cacher::VERSION started with Debug output enabled, accepting connections on " .
                   $daemon->sockhost . ':' . $daemon->sockport . ': LINE: '. __LINE__
             );
 

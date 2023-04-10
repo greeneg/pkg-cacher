@@ -28,6 +28,8 @@ package PkgCacher {
 
     use Try::Tiny qw(try catch);
 
+    our $VERSION = "2.0.0";
+
     our $cfg;
 
     our $erlog_fh = undef;

@@ -36,7 +36,6 @@ package PkgCacher::Fetch {
     use File::Path;
 
     # Data shared between files
-    our $version;
     our %pathmap;
     our $cached_file;
     our $cached_head;
@@ -91,11 +90,11 @@ package PkgCacher::Fetch {
 
     # Arg is ref to HTTP::Response
     sub write_header {
-        &set_global_lock(": libcurl, storing the header to $cached_head");
+        set_global_lock(": libcurl, storing the header to $cached_head");
         open (my $chfd, ">$cached_head") || barf("Unable to open $cached_head, $!");
         print $chfd ${$_[0]}->as_string;
         close($chfd);
-        &release_global_lock;
+        release_global_lock;
     }
 
     sub body_callback {
@@ -126,7 +125,7 @@ package PkgCacher::Fetch {
             $curl = WWW::Curl::Easy->new();
 
             # General
-            $curl->setopt(CURLOPT_USERAGENT, "pkg-cacher/$version (".$curl->version.')');
+            $curl->setopt(CURLOPT_USERAGENT, "pkg-cacher/$pkg_cacher::VERSION (".$curl->version.')');
             $curl->setopt(CURLOPT_NOPROGRESS, 1);
             $curl->setopt(CURLOPT_CONNECTTIMEOUT, 10);
             $curl->setopt(CURLOPT_NOSIGNAL, 1);
@@ -157,7 +156,7 @@ package PkgCacher::Fetch {
                 warn "Unrecognised limit: $l. Ignoring.";
             }
             if ($maxspeed) {
-                debug_message("fetch: Setting bandwidth limit to $maxspeed");
+                $pkg_cacher->debug_message($cfg, "fetch: Setting bandwidth limit to $maxspeed: LINE: ". __LINE__);
                 $curl->setopt(CURLOPT_MAX_RECV_SPEED_LARGE, $maxspeed);
             }
 
