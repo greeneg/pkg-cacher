@@ -226,7 +226,7 @@ EOM
         $terminating=1;
 
         # close all connections or shutdown the server if parent and kill
-        $pkg_cacher->debug_message($cfg, 'received SIGTERM, terminating: LINE: '. __LINE__);
+        $pkg_cacher->debug_message($cfg, 'received SIGTERM, terminating: LINE: '. __PACKAGE__ .':'. __LINE__);
         $con->close if defined($con);
 
         if ($server_pid && $server_pid == $$) {
@@ -234,7 +234,7 @@ EOM
         }
 
         for my $children (@childPids) {
-            $pkg_cacher->debug_message($cfg, "killing subprocess: $children: LINE: ". __LINE__);
+            $pkg_cacher->debug_message($cfg, "killing subprocess: $children: LINE: ". __PACKAGE__ .':'. __LINE__);
             kill 15, $children;
         };
         exit 0;
@@ -273,10 +273,10 @@ EOM
         # Test if IPv6 is available and use if it is
         if (eval{require IO::Socket::INET6}) {
             import IO::Socket::INET6;
-            $pkg_cacher->debug_message($cfg, 'Using IPv6: LINE: '. __LINE__);
+            $pkg_cacher->debug_message($cfg, 'Using IPv6: LINE: '. __PACKAGE__ .':'. __LINE__);
             return  IO::Socket::INET6->new(@args);
         } else {
-            $pkg_cacher->debug_message($cfg, 'Using IPv4: LINE: '. __LINE__);
+            $pkg_cacher->debug_message($cfg, 'Using IPv4: LINE: '. __PACKAGE__ .':'. __LINE__);
             return IO::Socket::INET->new(@args);
         }
     }
@@ -378,7 +378,7 @@ EOM
                     open (STDERR, '>/dev/null') || die $!;
                 }
             } else {
-                $pkg_cacher->debug_message($cfg, 'Not forking a listener: LINE: '. __LINE__);
+                $pkg_cacher->debug_message($cfg, 'Not forking a listener: LINE: '. __PACKAGE__ .':'. __LINE__);
             }
 
             NO_FORK:
@@ -397,7 +397,7 @@ EOM
             $pkg_cacher->debug_message(
                 $cfg,
                 "Pkg-Cacher version $PkgCacher::VERSION started with Debug output enabled, accepting connections on " .
-                  $daemon->sockhost . ':' . $daemon->sockport . ': LINE: '. __LINE__
+                  $daemon->sockhost . ':' . $daemon->sockport . ': LINE: '. __PACKAGE__ .':'. __LINE__
             );
 
             while (true) {
@@ -406,7 +406,7 @@ EOM
                 next if (!$newcon);
                 last if $terminating;
 
-                $pkg_cacher->debug_message($cfg, 'Connection from '.$newcon->peerhost.': LINE: '. __LINE__);
+                $pkg_cacher->debug_message($cfg, 'Connection from '.$newcon->peerhost.': LINE: '. __PACKAGE__ .':'. __LINE__);
 
                 my $pid = fork();
                 if ($pid < 0) {
@@ -415,7 +415,7 @@ EOM
 
                 if ($pid > 0) {
                     # parent
-                    $pkg_cacher->debug_message($cfg, "registered child process: $pid: LINE: ". __LINE__);
+                    $pkg_cacher->debug_message($cfg, "registered child process: $pid: LINE: ". __PACKAGE__ .':'. __LINE__);
                     push @childPids, $pid;
                     next;
                 }

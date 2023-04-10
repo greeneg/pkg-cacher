@@ -46,7 +46,7 @@ package PkgCacher::Fetch {
     my $cfg;
     my $pkg_cacher = undef;
     sub new ($class, $_cfg, $_pkg_cacher) {
-        say STDERR "Constructing PkgCacher::Config object: ". (caller(0))[3] if $ENV{'DEBUG'};
+        say STDERR "Constructing PkgCacher::Fetch object: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $self = {};
 
         $cfg = $_cfg;
@@ -60,7 +60,8 @@ package PkgCacher::Fetch {
 
     # Subroutines
     sub head_callback {
-        say STDERR "debug: DUMP: ". Dumper(@_);
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        say STDERR "debug: DUMP: ". Dumper(@_) if $ENV{'DEBUG'};
 
         my $chunk = $_[0];
         my $response = ${$_[1][0]};
@@ -93,7 +94,8 @@ package PkgCacher::Fetch {
 
     # Arg is ref to HTTP::Response
     sub write_header {
-        set_global_lock(": libcurl, storing the header to $cached_head");
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        $pkg_cacher->set_global_lock(": libcurl, storing the header to $cached_head");
         open (my $chfd, ">$cached_head") || barf("Unable to open $cached_head, $!");
         print $chfd ${$_[0]}->as_string;
         close($chfd);
@@ -101,6 +103,7 @@ package PkgCacher::Fetch {
     }
 
     sub body_callback {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my ($chunk, $handle) = @_;
 
         # debug_message("fetch: Body callback got ".length($chunk)." bytes for $handle\n");
@@ -113,15 +116,17 @@ package PkgCacher::Fetch {
         return length($chunk); # OK
     }
 
-    sub debug_callback ($data, $, $type) {
-        writeerrorlog("debug CURLINFO_"
+    sub debug_callback ($data, $type) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
+        $pkg_cacher->write_errorlog("debug CURLINFO_"
             .('TEXT','HEADER_IN','HEADER_OUT','DATA_IN','DATA_OUT','SSL_DATA_IN','SSL_DATA_OUT')[$type]
-            ." [$$]: $data") if ($type < $cfg->{'debug'});
+            ." [$PROCESS_ID]: $data") if ($type < $cfg->{'debug'});
     }
 
     {
         my $curl; # Make static
         sub setup_curl {
+            say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
             return \$curl if (defined($curl));
 
             $pkg_cacher->debug_message($cfg, 'fetch: init new libcurl object: LINE: '. __LINE__);
@@ -169,6 +174,7 @@ package PkgCacher::Fetch {
 
     # runs the get or head operations on the user agent
     sub libcurl ($vhost, $uri, $pkfdref) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $url;
         my $curl = ${setup_curl()};
 
@@ -295,6 +301,7 @@ package PkgCacher::Fetch {
     }
 
     our sub fetch_store ($self, $host, $uri) {
+        say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $response;
         my $pkfd;
         my $filename;
