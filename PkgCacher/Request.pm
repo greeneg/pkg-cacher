@@ -97,14 +97,14 @@ package PkgCacher::Request {
 
         # reading input line by line, through the secure input method
         while (true) {
-            $pkg_cacher->debug_message($cfg, 'Processing a new request line: LINE: '. __LINE__);
+            $pkg_cacher->debug_message($cfg, 'Processing a new request line: LINE: '. __PACKAGE__ .':'. __LINE__);
 
             my $line = getRequestLine();
             if (not defined($line)) {
                 exit 0;
             }
 
-            $pkg_cacher->debug_message($cfg, "got: $line: LINE: ". __LINE__);
+            $pkg_cacher->debug_message($cfg, "got: $line: LINE: ". __PACKAGE__ .':'. __LINE__);
 
             if ($line =~ /^$/) {
                 if (defined($testpath)) {
@@ -132,11 +132,11 @@ package PkgCacher::Request {
                 } elsif ($line =~ /^Host:\s+(\S+)/) {
                     $request_data_ref->{'hostreq'} = $1;
                 } elsif ($line =~ /^((?:Pragma|Cache-Control):\s*\S+)/) {
-                    $pkg_cacher->debug_message($cfg, "Request specified $1: LINE: ". __LINE__);
+                    $pkg_cacher->debug_message($cfg, "Request specified $1: LINE: ". __PACKAGE__ .':'. __LINE__);
                     push @cache_control, $1;
                     if ($1 =~ /no-cache/) {
                         $request_data_ref->{'cache_status'} = 'EXPIRED';
-                        $pkg_cacher->debug_message($cfg, "Download forced: LINE: ". __LINE__);
+                        $pkg_cacher->debug_message($cfg, "Download forced: LINE: ". __PACKAGE__ .':'. __LINE__);
                     }
                 } elsif ($line =~ /^Connection: close/i) {
                     $concloseflag = 1;
@@ -199,7 +199,7 @@ package PkgCacher::Request {
     }
 
     our sub bad_url ($self, $client, $cfg) {
-        $pkg_cacher->debug_message($cfg, "Alert: client $client disallowed by access control: LINE: ". __LINE__);
+        $pkg_cacher->debug_message($cfg, "Alert: client $client disallowed by access control: LINE: ". __PACKAGE__ .':'. __LINE__);
         $self->sendrsp($cfg, 403, 'Access to cache prohibited');
         exit 4;
     }
@@ -250,7 +250,7 @@ package PkgCacher::Request {
                     $clientaddr = substr ($clientaddr, 12);
                     goto is_ipv4;
                 } elsif ($clientaddr eq "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1") {
-                    $pkg_cacher->debug_message($cfg, 'client is localhost: LINE: '. __LINE__);
+                    $pkg_cacher->debug_message($cfg, 'client is localhost: LINE: '. __PACKAGE__ .':'. __LINE__);
                 } else {
                     $ip_pass = ($cfg->{'allowed_hosts_6'} =~ /^\*?$/) ||
                       ipv6_addr_in_list($clientaddr, 'allowed_hosts_6');
@@ -259,7 +259,7 @@ package PkgCacher::Request {
             } elsif (defined ($clientaddr = $pkg_cacher->ipv4_normalise($client))) { # IPv4?
                 is_ipv4:
                 if ($clientaddr eq "\x7F\0\0\1") {
-                    $pkg_cacher->debug_message($cfg, 'client is localhost: LINE: '. __LINE__);
+                    $pkg_cacher->debug_message($cfg, 'client is localhost: LINE: '. __PACKAGE__ .':'. __LINE__);
                 } else {
                     $ip_pass = ($cfg->{'allowed_hosts'} =~ /^\*?$/) ||
                       ipv4_addr_in_list($clientaddr, 'allowed_hosts');
@@ -272,7 +272,7 @@ package PkgCacher::Request {
             # Now check if the client address falls within this range
             if ($ip_pass and not $ip_fail) {
                 # Everything's cool, client is in allowed range
-                $pkg_cacher->debug_message($cfg, "Client $client passed access control rules: LINE: ". __LINE__);
+                $pkg_cacher->debug_message($cfg, "Client $client passed access control rules: LINE: ". __PACKAGE__ .':'. __LINE__);
             } else {
                 # Bzzzt, client is outside allowed range. Send a 403 and bail.
                 $self->bad_url($client, $cfg);
@@ -340,7 +340,7 @@ package PkgCacher::Request {
                 }
                 defined($sock) and $sock->shutdown(2); # Close
             }
-            $pkg_cacher->debug_message($cfg, "Resolved request is $reqstpath: LINE: ". __LINE__);
+            $pkg_cacher->debug_message($cfg, "Resolved request is $reqstpath: LINE: ". __PACKAGE__ .':'. __LINE__);
 
             # Now parse the path
             $pkg_cacher->debug_message($cfg, "Parsing reqstpath");
@@ -591,14 +591,14 @@ package PkgCacher::Request {
         my @result;
         my ($input_ranges) = $_[0] =~ /^bytes=([\d,-]+)$/i;
 
-        $pkg_cacher->debug_message($cfg, "parse_range: input_ranges = $input_ranges: LINE: ". __LINE__);
+        $pkg_cacher->debug_message($cfg, "parse_range: input_ranges = $input_ranges: LINE: ". __PACKAGE__ .':'. __LINE__);
 
         if ($input_ranges) {
             HANDLE_RANGE:
             foreach my $range (split /,/,$input_ranges) {
                 my ($start, $end, $single) = $range =~ /^(\d+)?-(\d+)?$|^(\d+)$/;
 
-                $pkg_cacher->debug_message($cfg, "parse_range: start = $start, end = $end, single = $single: LINE: ". __LINE__);
+                $pkg_cacher->debug_message($cfg, "parse_range: start = $start, end = $end, single = $single: LINE: ". __PACKAGE__ .':'. __LINE__);
 
                 if ($single) {
                     $start = $end = $single;
@@ -729,7 +729,7 @@ package PkgCacher::Request {
         # keep alive or not?
         # If error, force close
         if ($code != 200) {
-            $pkg_cacher->debug_message($cfg, "Got $code error. Going to close connection: LINE: ". __LINE__);
+            $pkg_cacher->debug_message($cfg, "Got $code error. Going to close connection: LINE: ". __PACKAGE__ .':'. __LINE__);
 
             $status_header .= "Connection: Close\r\n";
             print $con $status_header."\r\n";
@@ -740,7 +740,7 @@ package PkgCacher::Request {
         # Otherwise follow the client
         $fixed_headers .= 'Connection: '.($concloseflag ? 'Close' : 'Keep-Alive')."\r\n";
 
-        if (!$fromfile) {
+        if (not $fromfile) {
             $status_header .= $fixed_headers;
             print $con $status_header."\r\n";
             # pure HEAD request, we are done
@@ -781,14 +781,14 @@ package PkgCacher::Request {
             return;
         }
 
-        $pkg_cacher->debug_message($cfg, "ready to send contents of $cached_file: LINE: ". __LINE__);
+        $pkg_cacher->debug_message($cfg, "ready to send contents of $cached_file: LINE: ". __PACKAGE__ .':'. __LINE__);
 
         RANGE_ENTRY:
         foreach my $range_entry (@range_list) {
             my $begin = $range_entry->[0];
             my $end = $range_entry->[1];
 
-            $pkg_cacher->debug_message($cfg, "begin = $begin, end = $end: LINE: ". __LINE__);
+            $pkg_cacher->debug_message($cfg, "begin = $begin, end = $end: LINE: ". __PACKAGE__ .':'. __LINE__);
             next RANGE_ENTRY if ($begin >= $total_length);
 
             # needs to print the header first
@@ -952,9 +952,9 @@ EOF
     # IP address filtering.
     sub ipv4_addr_in_list :prototype($$) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        $pkg_cacher->debug_message($cfg, "$_[0]: LINE: ". __LINE__);
+        $pkg_cacher->debug_message($cfg, "$_[0]: LINE: ". __PACKAGE__ .':'. __LINE__);
         return 0 if $_[0] eq '';
-        $pkg_cacher->debug_message($cfg, "testing $_[1]: LINE: ". __LINE__);
+        $pkg_cacher->debug_message($cfg, "testing $_[1]: LINE: ". __PACKAGE__ .':'. __LINE__);
         return 0 unless $cfg->{$_[1]};
 
         my ($client, $cfitem) = @_;

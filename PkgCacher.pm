@@ -241,21 +241,21 @@ package PkgCacher {
         die ("Global lock file unknown") if not defined($exlockfile);
         $msg = '' if not defined($msg);
 
-        $self->debug_message($cfg, "Entering critical section $msg: LINE: ". __LINE__);
+        $self->debug_message($cfg, "Entering critical section $msg: LINE: ". __PACKAGE__ .':'. __LINE__);
 
         # may need to create it if the file got lost
         my $createstr = (-f $exlockfile) ? '' : '>';
 
         open($exlock, $createstr.$exlockfile);
         if (not $exlock or not flock($exlock, LOCK_EX)) {
-            $self->debug_message($cfg, "unable to achieve a lock on $exlockfile: $!: LINE: ". __LINE__);
+            $self->debug_message($cfg, "unable to achieve a lock on $exlockfile: $!: LINE: ". __PACKAGE__ .':'. __LINE__);
             die "Unable to achieve lock on $exlockfile: $!";
         }
     }
 
     our sub release_global_lock ($self) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
-        $self->debug_message($cfg, "Exiting critical section: LINE: ". __LINE__);
+        $self->debug_message($cfg, "Exiting critical section: LINE: ". __PACKAGE__ .':'. __LINE__);
         flock($exlock, LOCK_UN);
     }
 
