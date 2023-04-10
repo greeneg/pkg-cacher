@@ -24,6 +24,7 @@ package PkgCacher::Fetch {
     no warnings "experimental::signatures";
 
     use boolean;
+    use Data::Dumper;
     use Fcntl qw(:DEFAULT :flock);
 
     use WWW::Curl::Easy;
@@ -59,6 +60,8 @@ package PkgCacher::Fetch {
 
     # Subroutines
     sub head_callback {
+        say STDERR "debug: DUMP: ". Dumper(@_);
+
         my $chunk = $_[0];
         my $response = ${$_[1][0]};
         my $write = $_[1][1];
