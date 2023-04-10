@@ -299,11 +299,9 @@ package PkgCacher::Fetch {
 
         ($filename) = ($uri =~ /\/?([^\/]+)$/);
 
-        # split host to remove the unneeded distribution tag
-        say STDERR "debug: host: $host";
-        say STDERR "debug: URI: $uri";
-
-        my $url = "http://$host$uri";
+        # remove leading /
+        $uri =~ s|^\/||;
+        my $url = "http://$uri";
         $pkg_cacher->debug_message($cfg, "fetch: try to fetch $url: LINE: ". __LINE__);
 
         sysopen($pkfd, $cached_file, O_RDWR)
