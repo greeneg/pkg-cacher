@@ -122,7 +122,7 @@ package PkgCacher::Fetch {
         sub setup_curl {
             return \$curl if (defined($curl));
 
-            debug_message('fetch: init new libcurl object');
+            $pkg_cacher->debug_message($cfg, 'fetch: init new libcurl object: LINE: '. __LINE__);
             $curl = WWW::Curl::Easy->new();
 
             # General
@@ -131,30 +131,30 @@ package PkgCacher::Fetch {
             $curl->setopt(CURLOPT_CONNECTTIMEOUT, 10);
             $curl->setopt(CURLOPT_NOSIGNAL, 1);
             $curl->setopt(CURLOPT_LOW_SPEED_LIMIT, 0);
-            $curl->setopt(CURLOPT_LOW_SPEED_TIME, $cfg->{fetch_timeout});
-            $curl->setopt(CURLOPT_INTERFACE, $cfg->{use_interface}) if defined $cfg->{use_interface};
+            $curl->setopt(CURLOPT_LOW_SPEED_TIME, $cfg->{'fetch_timeout'});
+            $curl->setopt(CURLOPT_INTERFACE, $cfg->{'use_interface'}) if defined $cfg->{'use_interface'};
 
             # Callbacks
-            $curl->setopt(CURLOPT_WRITEFUNCTION, \&body_callback);
-            $curl->setopt(CURLOPT_HEADERFUNCTION, \&head_callback);
+            $curl->setopt(CURLOPT_WRITEFUNCTION, \body_callback);
+            $curl->setopt(CURLOPT_HEADERFUNCTION, \head_callback);
 
             # Disable this, it isn't supported on Debian Etch
             # $curl->setopt(CURLOPT_DEBUGFUNCTION, \&debug_callback);
             # $curl->setopt(CURLOPT_VERBOSE, $cfg->{debug});
 
             # SSL
-            if (! $cfg->{require_valid_ssl}) {
+            if (not $cfg->{'require_valid_ssl'}) {
                 $curl->setopt(CURLOPT_SSL_VERIFYPEER, 0);
                 $curl->setopt(CURLOPT_SSL_VERIFYHOST, 0);
             }
 
             # Rate limit support
             my $maxspeed;
-            for ($cfg->{limit}) {
-                /^\d+$/ && do { $maxspeed = $_; last; };
-                /^(\d+)k$/ && do { $maxspeed = $1 * 1024; last; };
-                /^(\d+)m$/ && do { $maxspeed = $1 * 1048576; last; };
-                warn "Unrecognised limit: $_. Ignoring.";
+            foreach my $l ($cfg->{'limit'}) {
+                $l =~ /^\d+$/ and do { $maxspeed = $l; last; };
+                $l =~ /^(\d+)k$/ and do { $maxspeed = $1 * 1024; last; };
+                $l =~ /^(\d+)m$/ and do { $maxspeed = $1 * 1048576; last; };
+                warn "Unrecognised limit: $l. Ignoring.";
             }
             if ($maxspeed) {
                 debug_message("fetch: Setting bandwidth limit to $maxspeed");
@@ -174,7 +174,7 @@ package PkgCacher::Fetch {
         my $response;
         my @headers;
 
-        if (! grep /^Pragma:/, @cache_control) {
+        if (not grep /^Pragma:/, @cache_control) {
             # Remove libcurl default.
             push @headers, 'Pragma:';
         } else {
@@ -183,31 +183,31 @@ package PkgCacher::Fetch {
 
         my @hostpaths = @{$pathmap{$vhost}};
 
-        PROCESS_HOST: while () {
+        while (true) {
             $response = HTTP::Response->new();
 
             # make the virtual hosts real.
             $hostcand = shift(@hostpaths);
-            debug_message("fetch: Candidate: $hostcand");
+            $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __LINE__);
             $url = $hostcand = ($hostcand =~ /^https?:/ ? '' : 'http://').$hostcand.$uri;
 
             # Proxy - SSL or otherwise - Needs to be set per host
             if ($url =~ /^https:/) {
-                $curl->setopt(CURLOPT_PROXY, $cfg->{https_proxy}) if ($cfg->{use_proxy} && $cfg->{https_proxy});
-                $curl->setopt(CURLOPT_PROXYUSERPWD, $cfg->{https_proxy_auth}) if ($cfg->{use_proxy_auth});
+                $curl->setopt(CURLOPT_PROXY, $cfg->{'https_proxy'}) if ($cfg->{'use_proxy'} and $cfg->{'https_proxy'});
+                $curl->setopt(CURLOPT_PROXYUSERPWD, $cfg->{'https_proxy_auth'}) if ($cfg->{'use_proxy_auth'});
             } else {
-                $curl->setopt(CURLOPT_PROXY, $cfg->{http_proxy}) if ($cfg->{use_proxy} && $cfg->{http_proxy});
-                $curl->setopt(CURLOPT_PROXYUSERPWD, $cfg->{http_proxy_auth}) if ($cfg->{use_proxy_auth});
+                $curl->setopt(CURLOPT_PROXY, $cfg->{'http_proxy'}) if ($cfg->{'use_proxy'} and $cfg->{'http_proxy'});
+                $curl->setopt(CURLOPT_PROXYUSERPWD, $cfg->{'http_proxy_auth'}) if ($cfg->{'use_proxy_auth'});
             }
             my $redirect_count = 0;
             my $retry_count = 0;
 
             while (true) {
-                if (!$pkfdref) {
-                    debug_message ('fetch: setting up for HEAD request');
+                if (not $pkfdref) {
+                    $pkg_cacher->debug_message($cfg, 'fetch: setting up for HEAD request: LINE: '. __LINE__);
                     $curl->setopt(CURLOPT_NOBODY,1);
                 } else {
-                    debug_message ('fetch: setting up for GET request');
+                    $pkg_cacher->debug_message($cfg, 'fetch: setting up for GET request: LINE: '. __LINE__);
                     $curl->setopt(CURLOPT_HTTPGET,1);
                     $curl->setopt(CURLOPT_FILE, $$pkfdref);
                 }
@@ -220,7 +220,7 @@ package PkgCacher::Fetch {
 
                 $curl->setopt(CURLOPT_URL, $url);
 
-                debug_message("fetch: getting $url");
+                $pkg_cacher->debug_message($cfg, "fetch: getting $url: LINE: ". __LINE__);
 
                 if ($curl->perform) { # error
                     $response = HTTP::Response->new(502);
@@ -287,7 +287,7 @@ package PkgCacher::Fetch {
             }
         }
 
-        debug_message("fetch: libcurl response =\n".$response->as_string."\n");
+        $pkg_cacher->debug_message($cfg, "fetch: libcurl response =\n".$response->as_string.": LINE: ". __LINE__);
 
         return \$response;
     }
