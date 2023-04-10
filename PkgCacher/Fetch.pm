@@ -125,7 +125,7 @@ package PkgCacher::Fetch {
             $curl = WWW::Curl::Easy->new();
 
             # General
-            $curl->setopt(CURLOPT_USERAGENT, "pkg-cacher/$pkg_cacher::VERSION (".$curl->version.')');
+            $curl->setopt(CURLOPT_USERAGENT, "pkg-cacher/$PkgCacher::VERSION (".$curl->version.')');
             $curl->setopt(CURLOPT_NOPROGRESS, 1);
             $curl->setopt(CURLOPT_CONNECTTIMEOUT, 10);
             $curl->setopt(CURLOPT_NOSIGNAL, 1);
