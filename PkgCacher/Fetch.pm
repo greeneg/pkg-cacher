@@ -199,10 +199,14 @@ package PkgCacher::Fetch {
         while (true) {
             $response = HTTP::Response->new();
 
-            # make the virtual hosts real.
+            # validate virtual host is the one we want
             $hostcand = shift(@hostpaths);
-            $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __PACKAGE__ .':'. __LINE__);
-            $url = $hostcand = ($hostcand =~ /^https?:/ ? '' : 'http://').$hostcand.$uri;
+            $uri =~ m@^(http://[a-zA-Z0-9\.]+)/.*$@;
+            my $host = "$1";
+            if ($host eq $hostcand) {
+                $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __PACKAGE__ .':'. __LINE__);
+                $url = $hostcand = ($hostcand =~ /^https?:/ ? '' : 'http://').$uri;
+            }
 
             # Proxy - SSL or otherwise - Needs to be set per host
             if ($url =~ /^https:/) {
