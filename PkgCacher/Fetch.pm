@@ -201,8 +201,8 @@ package PkgCacher::Fetch {
 
             # validate virtual host is the one we want
             $hostcand = shift(@hostpaths);
-            $uri =~ m@^(http://[a-zA-Z0-9\.]+)/.*$@;
-            my $host = "$1";
+            $uri =~ m/^(http:\/\/[a-zA-Z0-9\.]+)\/.*$/;
+            my $host = $1;
             if ($host eq $hostcand) {
                 $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __PACKAGE__ .':'. __LINE__);
                 $url = $hostcand = ($hostcand =~ /^https?:/ ? '' : 'http://').$uri;
