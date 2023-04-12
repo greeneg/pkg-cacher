@@ -202,6 +202,7 @@ package PkgCacher::Fetch {
             # validate virtual host is the one we want
             $hostcand = shift(@hostpaths);
             $uri =~ m/^(http:\/\/[a-zA-Z0-9\.]+)\/.*$/;
+            say STDERR "debug: match group 1: $1" if $ENV{'debug'};
             my $host = $1;
             if ($host eq $hostcand) {
                 $pkg_cacher->debug_message($cfg, "fetch: Candidate: $hostcand: LINE: ". __PACKAGE__ .':'. __LINE__);
