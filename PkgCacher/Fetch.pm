@@ -180,7 +180,7 @@ package PkgCacher::Fetch {
     sub libcurl ($vhost, $uri, $pkfdref) {
         say STDERR "In sub: ". (caller(0))[3] if $ENV{'DEBUG'};
         my $url;
-        say STDERR "debug: URL: $url: LINE: " . __PACKAGE__ .':'. __LINE__;
+        say STDERR "debug: URL: $uri: LINE: " . __PACKAGE__ .':'. __LINE__;
         my $curl = ${setup_curl()};
 
         my $hostcand;
